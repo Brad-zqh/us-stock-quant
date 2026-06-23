@@ -379,76 +379,88 @@ except Exception:
     _HAS_EARN = False
 
 
+def _analyze_one(t, name, d, bench, use_news, use_fundamentals, use_earnings):
+    """单只股票的完整分析。设计为可并行调用 (网络请求是瓶颈)。"""
+    n_bars = len(d)
+    insufficient = n_bars < 60          # 不足以算 SMA50, 视为次新股
+    factors = score_factors(d, bench)
+
+    # 新闻情绪因子 (美股英文 / A股中文, 按代码自动选源)
+    news_items = []
+    provider = _news_provider(t)
+    if use_news and provider is not None:
+        try:
+            sent, news_items = provider.sentiment_factor(t)
+        except Exception:
+            sent = 50.0
+    else:
+        sent = 50.0
+    factors["新闻情绪"] = sent
+
+    # 进阶因子: 基本面 / 分析师 / 资金流
+    plus_detail = {}
+    if use_fundamentals and _HAS_PLUS:
+        try:
+            plus_scores, plus_detail = factors_plus.all_plus_factors(t, d)
+            factors.update(plus_scores)
+        except Exception:
+            pass
+
+    sc = composite(factors)
+    action, color = action_from_score(sc)
+    plan = risk_plan(d, sc)
+    bt = backtest(d, bench)
+    stats = _perf_stats(bt["策略"], bt["策略"].pct_change())
+    bh = _perf_stats(bt["买入持有"], bt["买入持有"].pct_change())
+
+    # 财报日临近 (仅自选股, 默认开; 大池子关闭以提速)
+    earn = None
+    if use_earnings and _HAS_EARN:
+        try:
+            earn = earnings_mod.next_earnings(t)
+        except Exception:
+            earn = None
+    earn_cell = ""
+    if earn:
+        earn_cell = f"⚠️{earn['days']}天" if earn["soon"] else f"{earn['days']}天"
+
+    disp_name = name + ("　⚠️数据不足" if insufficient else "")
+    if insufficient:
+        action = "观察 (次新股)"
+    row = {"代码": t, "名称": disp_name, "综合分": sc,
+           "信号": action, "_color": color, **factors, **plan,
+           "距财报": earn_cell}
+    det = {"df": d, "factors": factors, "score": sc, "action": action,
+           "color": color, "plan": plan, "backtest": bt,
+           "stats": stats, "bh_stats": bh, "news": news_items,
+           "n_bars": n_bars, "insufficient": insufficient,
+           "plus_detail": plus_detail, "earnings": earn}
+    return t, row, det
+
+
 def analyze(watchlist: dict[str, str], period: str = "2y",
             use_news: bool = True, use_fundamentals: bool = True,
-            use_earnings: bool = False) -> dict:
+            use_earnings: bool = False, max_workers: int = 8) -> dict:
     tickers = list(watchlist.keys())
     data = fetch(tickers + [BENCHMARK], period=period)
-    bench = data.get(BENCHMARK, {}).get("Close") if BENCHMARK in data else None
-    if BENCHMARK in data:
-        bench = data[BENCHMARK]["Close"]
+    bench = data[BENCHMARK]["Close"] if BENCHMARK in data else None
 
-    results = []
-    detail = {}
-    for t in tickers:
-        if t not in data:
-            continue
-        d = add_indicators(data[t])
-        n_bars = len(d)
-        insufficient = n_bars < 60          # 不足以算 SMA50, 视为次新股
-        factors = score_factors(d, bench)
+    # 预先算好(CPU)指标, 再并行做(网络)新闻/基本面/财报
+    jobs = [(t, watchlist[t], add_indicators(data[t])) for t in tickers if t in data]
 
-        # 新闻情绪因子 (美股英文 / A股中文, 按代码自动选源)
-        news_items = []
-        provider = _news_provider(t)
-        if use_news and provider is not None:
+    results, detail = [], {}
+    from concurrent.futures import ThreadPoolExecutor
+    with ThreadPoolExecutor(max_workers=min(max_workers, max(1, len(jobs)))) as ex:
+        futs = [ex.submit(_analyze_one, t, nm, d, bench,
+                          use_news, use_fundamentals, use_earnings)
+                for t, nm, d in jobs]
+        for f in futs:
             try:
-                sent, news_items = provider.sentiment_factor(t)
+                t, row, det = f.result()
+                results.append(row)
+                detail[t] = det
             except Exception:
-                sent = 50.0
-        else:
-            sent = 50.0
-        factors["新闻情绪"] = sent
-
-        # 进阶因子: 基本面 / 分析师 / 资金流
-        plus_detail = {}
-        if use_fundamentals and _HAS_PLUS:
-            try:
-                plus_scores, plus_detail = factors_plus.all_plus_factors(t, d)
-                factors.update(plus_scores)
-            except Exception:
-                pass
-
-        sc = composite(factors)
-        action, color = action_from_score(sc)
-        plan = risk_plan(d, sc)
-        bt = backtest(d, bench)
-        stats = _perf_stats(bt["策略"], bt["策略"].pct_change())
-        bh = _perf_stats(bt["买入持有"], bt["买入持有"].pct_change())
-
-        # 财报日临近 (仅自选股, 默认开; 大池子关闭以提速)
-        earn = None
-        if use_earnings and _HAS_EARN:
-            try:
-                earn = earnings_mod.next_earnings(t)
-            except Exception:
-                earn = None
-        earn_cell = ""
-        if earn:
-            earn_cell = f"⚠️{earn['days']}天" if earn["soon"] else f"{earn['days']}天"
-
-        name = watchlist[t] + ("　⚠️数据不足" if insufficient else "")
-        if insufficient:
-            action = "观察 (次新股)"
-        row = {"代码": t, "名称": name, "综合分": sc,
-               "信号": action, "_color": color, **factors, **plan,
-               "距财报": earn_cell}
-        results.append(row)
-        detail[t] = {"df": d, "factors": factors, "score": sc, "action": action,
-                     "color": color, "plan": plan, "backtest": bt,
-                     "stats": stats, "bh_stats": bh, "news": news_items,
-                     "n_bars": n_bars, "insufficient": insufficient,
-                     "plus_detail": plus_detail, "earnings": earn}
+                continue
 
     table = pd.DataFrame(results).sort_values("综合分", ascending=False).reset_index(drop=True)
     return {"table": table, "detail": detail,

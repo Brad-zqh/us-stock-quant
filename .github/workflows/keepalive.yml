@@ -1,0 +1,27 @@
+name: Keep Streamlit Awake
+
+# 定时 ping Streamlit 应用的健康端点, 防止免费版休眠导致冷启动。
+# 公开仓库的 Actions 免费; cron 实际触发可能有几分钟延迟, 不影响保活效果。
+
+on:
+  schedule:
+    # 每 15 分钟一次 (UTC)。覆盖全天; 想省额度可改成只在活跃时段。
+    - cron: "*/15 * * * *"
+  workflow_dispatch: {}   # 也可手动触发
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping app health endpoint
+        run: |
+          URL="https://us-stock-quant-txpjva2xepffh9h2peiaup.streamlit.app/_stcore/health"
+          echo "Pinging $URL"
+          for i in 1 2 3; do
+            code=$(curl -s -o /dev/null -w "%{http_code}" -A "keepalive-bot" --max-time 60 "$URL" || echo "000")
+            echo "Attempt $i -> HTTP $code"
+            if [ "$code" = "200" ]; then exit 0; fi
+            sleep 10
+          done
+          # 即使非200也不让工作流失败 (休眠唤醒可能需多次)
+          echo "App may be waking; will retry next schedule."
