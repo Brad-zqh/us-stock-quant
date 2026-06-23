@@ -70,8 +70,17 @@ res = load(watchlist, period, use_news, use_fund)
 table, detail = res["table"], res["detail"]
 
 st.title("📈 美股量化选股看板")
-st.caption(f"更新时间: {res['asof']}　·　基准: {engine.BENCHMARK}　·　因子权重: "
-           + " ".join(f"{k}{int(v*100)}%" for k, v in engine.WEIGHTS.items()))
+reg = res.get("regime", {})
+if reg:
+    rc = {"🟢": "#16a34a", "🟡": "#f59e0b", "🔴": "#dc2626"}.get(reg["label"][:1], "#888")
+    st.markdown(
+        f"<div style='border-radius:8px;padding:8px 14px;background:#1e1e1e;"
+        f"border-left:6px solid {rc};margin-bottom:6px'>"
+        f"<b>🌐 大盘环境: {reg['label']}</b>　(择时分 {reg['score']})　"
+        f"<span style='color:#999;font-size:0.9em'>{reg['detail']} — "
+        f"Risk-On时全局略加分, Risk-Off时略减分</span></div>", unsafe_allow_html=True)
+st.caption(f"更新时间: {res['asof']}　·　基准: {engine.BENCHMARK}　·　11因子加权 · "
+           "🔴红=看多 🟢绿=看空")
 
 # ---------------------------------------------------------------- 侧边栏: 推送
 st.sidebar.divider()
@@ -102,20 +111,21 @@ def _render_screen(scr, currency="$"):
     if scr is None or len(scr) == 0:
         st.warning("未取到数据, 请稍后刷新。")
         return
-    cols_scr = [c for c in ["代码", "名称", "主题", "综合分", "信号", "趋势", "动量",
-                            "资金流", "基本面", "分析师", "现价", "止损价", "目标价",
-                            "建议仓位%"] if c in scr.columns]
-    grad = [c for c in ["综合分", "趋势", "动量", "资金流", "基本面", "分析师"] if c in scr.columns]
+    cols_scr = [c for c in ["代码", "名称", "主题", "综合分", "信号", "基本面", "趋势",
+                            "分析师", "动量", "盈利质量", "资金流", "筹码面", "现价",
+                            "止损价", "目标价", "建议仓位%"] if c in scr.columns]
+    grad = [c for c in ["综合分", "基本面", "趋势", "分析师", "动量", "盈利质量",
+                        "资金流", "筹码面"] if c in scr.columns]
     fmt = {c: "{:.2f}" for c in ["现价", "止损价", "目标价"] if c in scr.columns}
     fmt["建议仓位%"] = "{:.1f}"
     st.dataframe(
         scr[cols_scr].style
-        .background_gradient(subset=grad, cmap="RdYlGn", vmin=0, vmax=100)
+        .background_gradient(subset=grad, cmap="RdYlGn_r", vmin=0, vmax=100)
         .format(fmt),
         use_container_width=True, height=min(60 + 36 * len(scr), 700))
     buys = scr[scr["综合分"] >= 58]
     if len(buys):
-        st.success("**🟢 买入级候选 (综合分≥58)**　" +
+        st.success("**🔴 买入级候选 (综合分≥58)**　" +
                    "　".join(f"{r['代码']} {r['名称']}({r['综合分']})" for _, r in buys.iterrows()))
 
 # ================================================================ TAB 1 排名
@@ -133,16 +143,17 @@ with tab1:
                 unsafe_allow_html=True)
 
     st.markdown("###")
-    factor_cols = [c for c in ["趋势", "动量", "资金流", "基本面", "分析师",
-                               "新闻情绪", "强弱", "相对大盘", "风险"] if c in table.columns]
+    factor_cols = [c for c in ["基本面", "趋势", "分析师", "动量", "盈利质量", "资金流",
+                               "筹码面", "风险", "相对大盘", "新闻情绪", "强弱"]
+                   if c in table.columns]
     show_cols = (["代码", "名称", "综合分", "信号"] + factor_cols +
                  ["现价", "止损价", "目标价", "止损%", "目标%", "建议仓位%"] +
                  (["距财报"] if "距财报" in table.columns else []))
     disp = table[show_cols].copy()
     st.dataframe(
         disp.style
-        .background_gradient(subset=["综合分"], cmap="RdYlGn", vmin=0, vmax=100)
-        .background_gradient(subset=factor_cols, cmap="RdYlGn", vmin=0, vmax=100)
+        .background_gradient(subset=["综合分"], cmap="RdYlGn_r", vmin=0, vmax=100)
+        .background_gradient(subset=factor_cols, cmap="RdYlGn_r", vmin=0, vmax=100)
         .format({"现价": "{:.2f}", "止损价": "{:.2f}", "目标价": "{:.2f}",
                  "止损%": "{:+.1f}", "目标%": "{:+.1f}", "建议仓位%": "{:.1f}"}),
         use_container_width=True, height=min(60 + 38 * len(disp), 500))
@@ -177,13 +188,15 @@ with tab2:
         # 基本面 / 分析师 / 资金流 明细
         pd_detail = info.get("plus_detail", {})
         if pd_detail:
-            fc1, fc2, fc3 = st.columns(3)
-            for col, key, icon in [(fc1, "基本面", "📊"), (fc2, "分析师", "🎯"), (fc3, "资金流", "💰")]:
+            items = [("基本面", "📊"), ("盈利质量", "🚀"), ("分析师", "🎯"),
+                     ("筹码面", "🧩"), ("资金流", "💰")]
+            ccols = st.columns(len(items))
+            for col, (key, icon) in zip(ccols, items):
                 dd = pd_detail.get(key, {})
                 if dd:
                     txt = "　".join(f"{k} **{v}**" for k, v in dd.items())
                     col.markdown(f"**{icon} {key}** ({info['factors'].get(key,'-')})<br>"
-                                 f"<span style='font-size:0.82em'>{txt}</span>",
+                                 f"<span style='font-size:0.8em'>{txt}</span>",
                                  unsafe_allow_html=True)
 
         # 原始技术指标读数 (透明化)
@@ -208,16 +221,16 @@ with tab2:
             fig.add_trace(go.Candlestick(
                 x=dd.index, open=dd["Open"], high=dd["High"], low=dd["Low"],
                 close=dd["Close"], name="K线",
-                increasing_line_color="#26a69a", decreasing_line_color="#ef5350"), row=1, col=1)
+                increasing_line_color="#ef5350", decreasing_line_color="#26a69a"), row=1, col=1)
             for ma, col in [("SMA20", "#f4d35e"), ("SMA50", "#ee964b"), ("SMA200", "#9b5de5")]:
                 fig.add_trace(go.Scatter(x=dd.index, y=dd[ma], name=ma,
                                          line=dict(width=1, color=col)), row=1, col=1)
             # 止损/目标参考线
-            fig.add_hline(y=plan["止损价"], line=dict(color="#dc2626", dash="dot"), row=1, col=1)
-            fig.add_hline(y=plan["目标价"], line=dict(color="#16a34a", dash="dot"), row=1, col=1)
+            fig.add_hline(y=plan["止损价"], line=dict(color="#16a34a", dash="dot"), row=1, col=1)
+            fig.add_hline(y=plan["目标价"], line=dict(color="#dc2626", dash="dot"), row=1, col=1)
 
             fig.add_trace(go.Bar(x=dd.index, y=dd["MACD_hist"], name="MACD柱",
-                                 marker_color=np.where(dd["MACD_hist"] >= 0, "#26a69a", "#ef5350")), row=2, col=1)
+                                 marker_color=np.where(dd["MACD_hist"] >= 0, "#ef5350", "#26a69a")), row=2, col=1)
             fig.add_trace(go.Scatter(x=dd.index, y=dd["MACD"], name="MACD", line=dict(color="#42a5f5", width=1)), row=2, col=1)
             fig.add_trace(go.Scatter(x=dd.index, y=dd["MACD_signal"], name="Signal", line=dict(color="#ffa726", width=1)), row=2, col=1)
 
@@ -245,7 +258,7 @@ with tab2:
 
             bt = info["backtest"]
             figb = go.Figure()
-            figb.add_trace(go.Scatter(x=bt.index, y=bt["策略"], name="量化策略", line=dict(color="#16a34a", width=2)))
+            figb.add_trace(go.Scatter(x=bt.index, y=bt["策略"], name="量化策略", line=dict(color="#dc2626", width=2)))
             figb.add_trace(go.Scatter(x=bt.index, y=bt["买入持有"], name="买入持有", line=dict(color="#888", width=1.5, dash="dot")))
             figb.update_layout(template="plotly_dark", height=290, title="策略回测净值",
                                margin=dict(t=30, b=10), legend=dict(orientation="h", y=1.1))
@@ -338,19 +351,24 @@ with tab6:
                "没有任何模型能准确预测股价。它的作用是把一篮子股票按「当前性价比」排序, "
                "并给出基于规则的买卖区间。是否有效, 以下方**回测指标(年化/夏普/胜率)**为准。")
 
-    st.markdown("### 综合分 = 9 个因子加权 (0~100 分)")
+    st.markdown("### 综合分 = 11 个因子加权 (0~100 分)　+ 大盘环境微调")
     wdf = pd.DataFrame([
-        ["基本面", "17%", "PEG、营收增速、毛利率、ROE、净利率 — 公司值不值这个价", "yfinance .info"],
-        ["趋势", "15%", "价格 vs SMA50/200、金叉死叉、ADX趋势强度 — 方向与强度", "技术"],
-        ["分析师", "13%", "华尔街评级均值、目标价上行空间、覆盖分析师数 — 机构怎么看", "yfinance"],
-        ["动量", "12%", "MACD、6月/1月涨幅、KDJ随机指标 — 涨势能否延续", "技术"],
-        ["资金流", "10%", "OBV能量潮、Chaikin CMF、MFI、放量突破52周高 — 钱在进还是出", "技术"],
-        ["风险", "10%", "年化波动率 — 越稳越高分", "技术"],
-        ["相对大盘", "8%", "近63日跑赢/跑输 QQQ(纳指) — 相对强度", "技术"],
-        ["新闻情绪", "8%", "美股英文(VADER)/A股中文(akshare) + 金融词典情绪", "新闻"],
-        ["强弱", "7%", "RSI、布林带%B — 短期超买超卖", "技术"],
+        ["基本面", "14%", "PEG、营收增速、毛利率、ROE、净利率 — 公司值不值这个价", "yfinance"],
+        ["趋势", "13%", "价格 vs SMA50/200、金叉死叉、ADX趋势强度 — 方向与强度", "技术"],
+        ["分析师", "11%", "华尔街评级均值、目标价上行空间、覆盖分析师数 — 机构怎么看", "yfinance"],
+        ["动量", "10%", "MACD、6月/1月涨幅、KDJ随机指标 — 涨势能否延续", "技术"],
+        ["盈利质量🆕", "10%", "近4季盈利惊喜(是否连续超预期)、盈利同比增速、预期EPS改善", "yfinance"],
+        ["资金流", "9%", "OBV、Chaikin CMF、MFI、放量突破52周高 — 钱在进还是出", "技术"],
+        ["筹码面🆕", "8%", "机构持股、内部人持股、做空比例/回补天数 — 主力与空头怎么站队", "yfinance"],
+        ["风险", "8%", "年化波动率 — 越稳越高分", "技术"],
+        ["相对大盘", "7%", "近63日跑赢/跑输 QQQ(纳指) — 相对强度", "技术"],
+        ["新闻情绪", "6%", "美股英文(VADER)/A股中文(akshare) + 金融词典情绪", "新闻"],
+        ["强弱", "4%", "RSI、布林带%B — 短期超买超卖", "技术"],
     ], columns=["因子", "权重", "看什么", "来源"])
     st.table(wdf)
+    st.markdown("**🌐 大盘环境 (Market Regime)**: 看 QQQ 是否站上 50/200 日线 + 近月动量, "
+                "判断 Risk-On/Off。Risk-On 时全局略加分(×1.05)、Risk-Off 时略减分(×0.93) — "
+                "顺大势、避免在系统性下跌中满仓。")
 
     st.markdown("""
 ### 打分→信号 的规则

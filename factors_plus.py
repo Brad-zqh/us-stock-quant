@@ -112,6 +112,70 @@ def moneyflow_factor(d) -> tuple[float, dict]:
     return _clip(s), detail
 
 
+# ---------------------------------------------------------------- 筹码面 (主力/空头持仓)
+def positioning_factor(info: dict) -> tuple[float, dict]:
+    s, detail = 50.0, {}
+    inst = info.get("heldPercentInstitutions")
+    if inst is not None:
+        # 机构持股 40%~85% 较健康; 过低=缺乏认可, 过高=拥挤
+        s += np.clip((inst - 0.45) * 50, -12, 16)
+        detail["机构持股%"] = round(inst * 100, 1)
+    ins = info.get("heldPercentInsiders")
+    if ins is not None:
+        s += np.clip(ins * 40, 0, 10)            # 内部人持股=利益绑定
+        detail["内部人%"] = round(ins * 100, 1)
+    spf = info.get("shortPercentOfFloat")
+    if spf is not None:
+        # 做空比例高=空头看空(利空); >15% 标挤压风险
+        s -= np.clip(spf * 120, 0, 22)
+        detail["做空比例%"] = round(spf * 100, 1)
+        if spf > 0.15:
+            detail["提示"] = "高做空, 留意逼空"
+    sr = info.get("shortRatio")
+    if sr is not None:
+        detail["回补天数"] = round(sr, 1)
+    return _clip(s), detail
+
+
+# ---------------------------------------------------------------- 盈利质量 (惊喜/增速)
+def _earnings_surprises(ticker: str) -> list:
+    key = "_surp_" + ticker
+    if key in _INFO_CACHE:
+        return _INFO_CACHE[key]
+    vals = []
+    try:
+        import yfinance as yf
+        ed = yf.Ticker(ticker).get_earnings_dates(limit=8)
+        if ed is not None and "Surprise(%)" in ed:
+            vals = [float(x) for x in ed["Surprise(%)"].dropna().head(4)]
+    except Exception:
+        vals = []
+    _INFO_CACHE[key] = vals
+    return vals
+
+
+def earnings_quality_factor(ticker: str, info: dict) -> tuple[float, dict]:
+    s, detail = 50.0, {}
+    surp = _earnings_surprises(ticker)
+    if surp:
+        avg = float(np.mean(surp))
+        beats = sum(1 for x in surp if x > 0)
+        s += np.clip(avg * 2.5, -18, 18)          # 平均惊喜
+        s += (beats - len(surp) / 2) * 4          # 超预期次数
+        detail["近4季均惊喜%"] = round(avg, 1)
+        detail["超预期"] = f"{beats}/{len(surp)}次"
+    eg = info.get("earningsQuarterlyGrowth")
+    if eg is not None:
+        s += np.clip(eg * 25, -15, 18)            # 盈利同比增速
+        detail["盈利增速%"] = round(eg * 100, 1)
+    fe, te = info.get("forwardEps"), info.get("trailingEps")
+    if fe and te and te != 0:
+        chg = fe / te - 1
+        s += np.clip(chg * 40, -12, 15)           # 预期EPS改善
+        detail["EPS预期变化%"] = round(chg * 100, 1)
+    return _clip(s), detail
+
+
 def all_plus_factors(ticker: str, d) -> tuple[dict, dict]:
     """返回 ({因子名:分数}, {因子名:明细dict})。"""
     info = get_info(ticker)
@@ -119,8 +183,13 @@ def all_plus_factors(ticker: str, d) -> tuple[dict, dict]:
     f_fun, d_fun = fundamental_factor(info)
     f_ana, d_ana = analyst_factor(info, px)
     f_mf, d_mf = moneyflow_factor(d)
-    scores = {"基本面": round(f_fun, 1), "分析师": round(f_ana, 1), "资金流": round(f_mf, 1)}
-    details = {"基本面": d_fun, "分析师": d_ana, "资金流": d_mf}
+    f_pos, d_pos = positioning_factor(info)
+    f_eq, d_eq = earnings_quality_factor(ticker, info)
+    scores = {"基本面": round(f_fun, 1), "分析师": round(f_ana, 1),
+              "资金流": round(f_mf, 1), "筹码面": round(f_pos, 1),
+              "盈利质量": round(f_eq, 1)}
+    details = {"基本面": d_fun, "分析师": d_ana, "资金流": d_mf,
+               "筹码面": d_pos, "盈利质量": d_eq}
     return scores, details
 
 

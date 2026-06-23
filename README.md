@@ -26,19 +26,25 @@ streamlit run app.py          # 浏览器打开 http://localhost:8501
 
 > A股说明：价格+基本面可用；分析师评级部分缺失时取中性；英文新闻因子对A股不适用，故关闭。
 
-## 9 因子综合打分（0~100）
+## 11 因子综合打分（0~100）+ 大盘环境微调
 
 | 因子 | 权重 | 看什么 | 模块 |
 |------|------|--------|------|
-| 基本面 | 17% | PEG、营收增速、毛利率、ROE、净利率 | factors_plus.py |
-| 趋势 | 15% | 价格 vs SMA50/200、金叉死叉、**ADX趋势强度** | engine.py |
-| 分析师 | 13% | 华尔街评级均值、目标价上行空间、覆盖度 | factors_plus.py |
-| 动量 | 12% | MACD、6月/1月动量、**KDJ随机指标** | engine.py |
-| 资金流 | 10% | OBV、Chaikin CMF、**MFI资金流量**、放量突破52周高 | factors_plus.py |
-| 风险 | 10% | 年化波动率 | engine.py |
-| 相对大盘 | 8% | 近63日 vs QQQ | engine.py |
-| 新闻情绪 | 8% | **美股英文(VADER) / A股中文(akshare)** 金融词典情绪 | news.py / cn_news.py |
-| 强弱 | 7% | RSI、布林 %B | engine.py |
+| 基本面 | 14% | PEG、营收增速、毛利率、ROE、净利率 | factors_plus.py |
+| 趋势 | 13% | 价格 vs SMA50/200、金叉死叉、ADX趋势强度 | engine.py |
+| 分析师 | 11% | 华尔街评级均值、目标价上行空间、覆盖度 | factors_plus.py |
+| 动量 | 10% | MACD、6月/1月动量、KDJ随机指标 | engine.py |
+| **盈利质量🆕** | 10% | 近4季盈利惊喜(连续超预期?)、盈利同比增速、预期EPS改善 | factors_plus.py |
+| 资金流 | 9% | OBV、Chaikin CMF、MFI、放量突破52周高 | factors_plus.py |
+| **筹码面🆕** | 8% | 机构持股、内部人持股、做空比例/回补天数 | factors_plus.py |
+| 风险 | 8% | 年化波动率 | engine.py |
+| 相对大盘 | 7% | 近63日 vs QQQ | engine.py |
+| 新闻情绪 | 6% | 美股英文(VADER) / A股中文(akshare) 金融词典情绪 | news.py / cn_news.py |
+| 强弱 | 4% | RSI、布林 %B | engine.py |
+
+> **🌐 大盘环境(Market Regime)🆕**：看 QQQ 是否站上 50/200 日线 + 近月动量，判断 Risk-On/Off，
+> 顺大势对所有个股分做 ±微调（On ×1.05 / Off ×0.93），避免系统性下跌中满仓。
+> **配色**：A股习惯 🔴红=看多/买入、🟢绿=看空/卖出。
 
 > **技术指标全集**：SMA20/50/200、EMA、MACD、RSI、布林带、ATR、**ADX/+DI/−DI、KDJ、MFI**、OBV、CMF、52周高。
 > **A股中文新闻**：`cn_news.py` 用 akshare 抓东方财富个股新闻 + 中文金融情绪词典（懂"涨停/减持/商誉减值"等金融语义）。

@@ -263,9 +263,10 @@ def score_factors(d: pd.DataFrame, bench: pd.Series | None = None) -> dict:
     }
 
 
-# 因子权重 (9 因子: 技术 + 情绪 + 基本面 + 分析师 + 资金流)
-WEIGHTS = {"趋势": 0.15, "动量": 0.12, "资金流": 0.10, "相对大盘": 0.08,
-           "新闻情绪": 0.08, "基本面": 0.17, "分析师": 0.13, "强弱": 0.07, "风险": 0.10}
+# 因子权重 (11 因子: 技术 + 情绪 + 基本面 + 分析师 + 资金流 + 筹码面 + 盈利质量)
+WEIGHTS = {"基本面": 0.14, "趋势": 0.13, "分析师": 0.11, "动量": 0.10,
+           "盈利质量": 0.10, "资金流": 0.09, "筹码面": 0.08, "风险": 0.08,
+           "相对大盘": 0.07, "新闻情绪": 0.06, "强弱": 0.04}
 
 # 若关闭基本面/分析师/资金流, 用这套纯技术权重 (自动归一化)
 def _effective_weights(factors: dict) -> dict:
@@ -280,16 +281,16 @@ def composite(factors: dict) -> float:
 
 
 def action_from_score(score: float) -> tuple[str, str]:
-    """返回 (动作, 颜色)."""
+    """返回 (动作, 颜色). A股习惯: 红=看多/买, 绿=看空/卖."""
     if score >= 70:
-        return "强烈买入 ▲▲", "#16a34a"
+        return "强烈买入 ▲▲", "#dc2626"   # 红
     if score >= 58:
-        return "买入 ▲", "#22c55e"
+        return "买入 ▲", "#ef4444"        # 红
     if score >= 45:
-        return "持有 —", "#a3a3a3"
+        return "持有 —", "#a3a3a3"        # 灰
     if score >= 35:
-        return "减仓 ▼", "#f59e0b"
-    return "卖出 ▼▼", "#dc2626"
+        return "减仓 ▼", "#f59e0b"        # 橙
+    return "卖出 ▼▼", "#16a34a"          # 绿
 
 
 # ----------------------------------------------------------------------------
@@ -379,7 +380,8 @@ except Exception:
     _HAS_EARN = False
 
 
-def _analyze_one(t, name, d, bench, use_news, use_fundamentals, use_earnings):
+def _analyze_one(t, name, d, bench, use_news, use_fundamentals, use_earnings,
+                 regime_mult=1.0):
     """单只股票的完整分析。设计为可并行调用 (网络请求是瓶颈)。"""
     n_bars = len(d)
     insufficient = n_bars < 60          # 不足以算 SMA50, 视为次新股
@@ -406,7 +408,9 @@ def _analyze_one(t, name, d, bench, use_news, use_fundamentals, use_earnings):
         except Exception:
             pass
 
-    sc = composite(factors)
+    sc_raw = composite(factors)
+    # 大盘环境微调: risk-on 略放大优势, risk-off 略压缩 (围绕50缩放偏离)
+    sc = round(float(np.clip(50 + (sc_raw - 50) * regime_mult, 0, 100)), 1)
     action, color = action_from_score(sc)
     plan = risk_plan(d, sc)
     bt = backtest(d, bench)
@@ -438,12 +442,39 @@ def _analyze_one(t, name, d, bench, use_news, use_fundamentals, use_earnings):
     return t, row, det
 
 
+def market_regime(bench: pd.Series | None) -> dict:
+    """大盘环境 (择时风险开关): QQQ 相对 200/50 日线 + 近一月动量。
+    返回 {score 0~100, label, mult}. mult 用于轻微缩放个股分 (risk-on 略放大, risk-off 略压缩)。"""
+    if bench is None or len(bench) < 60:
+        return {"score": 50, "label": "未知", "mult": 1.0, "detail": ""}
+    c = float(bench.iloc[-1])
+    sma50 = bench.rolling(50).mean().iloc[-1]
+    sma200 = bench.rolling(min(200, len(bench))).mean().iloc[-1]
+    mom20 = c / bench.iloc[-21] - 1 if len(bench) > 21 else 0
+    s = 50.0
+    s += 18 if c > sma200 else -18
+    s += 12 if c > sma50 else -12
+    s += float(np.clip(mom20 * 200, -15, 15))
+    s = float(np.clip(s, 0, 100))
+    if s >= 65:
+        label, mult = "🟢 Risk-On 进攻", 1.05
+    elif s >= 45:
+        label, mult = "🟡 中性", 1.0
+    else:
+        label, mult = "🔴 Risk-Off 防御", 0.93
+    detail = (f"QQQ {'在' if c > sma200 else '跌破'}200日线, "
+              f"{'在' if c > sma50 else '跌破'}50日线, 近月{mom20*100:+.1f}%")
+    return {"score": round(s, 1), "label": label, "mult": mult, "detail": detail}
+
+
 def analyze(watchlist: dict[str, str], period: str = "2y",
             use_news: bool = True, use_fundamentals: bool = True,
-            use_earnings: bool = False, max_workers: int = 8) -> dict:
+            use_earnings: bool = False, max_workers: int = 8,
+            use_regime: bool = True) -> dict:
     tickers = list(watchlist.keys())
     data = fetch(tickers + [BENCHMARK], period=period)
     bench = data[BENCHMARK]["Close"] if BENCHMARK in data else None
+    regime = market_regime(bench) if use_regime else {"score": 50, "label": "—", "mult": 1.0, "detail": ""}
 
     # 预先算好(CPU)指标, 再并行做(网络)新闻/基本面/财报
     jobs = [(t, watchlist[t], add_indicators(data[t])) for t in tickers if t in data]
@@ -452,7 +483,7 @@ def analyze(watchlist: dict[str, str], period: str = "2y",
     from concurrent.futures import ThreadPoolExecutor
     with ThreadPoolExecutor(max_workers=min(max_workers, max(1, len(jobs)))) as ex:
         futs = [ex.submit(_analyze_one, t, nm, d, bench,
-                          use_news, use_fundamentals, use_earnings)
+                          use_news, use_fundamentals, use_earnings, regime["mult"])
                 for t, nm, d in jobs]
         for f in futs:
             try:
@@ -463,7 +494,7 @@ def analyze(watchlist: dict[str, str], period: str = "2y",
                 continue
 
     table = pd.DataFrame(results).sort_values("综合分", ascending=False).reset_index(drop=True)
-    return {"table": table, "detail": detail,
+    return {"table": table, "detail": detail, "regime": regime,
             "asof": dt.datetime.now().strftime("%Y-%m-%d %H:%M")}
 
 
