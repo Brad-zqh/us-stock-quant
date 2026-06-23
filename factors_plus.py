@@ -93,6 +93,15 @@ def moneyflow_factor(d) -> tuple[float, dict]:
     if cmf is not None and np.isfinite(cmf):
         s += np.clip(cmf * 120, -20, 20)           # CMF > 0 资金流入
         detail["CMF"] = round(float(cmf), 3)
+    mfi = last.get("MFI")
+    if mfi is not None and np.isfinite(mfi):
+        # MFI: 量价版RSI, >80超买减分, <20超卖加分, 中枢偏多
+        s += np.clip((mfi - 50) * 0.25, -10, 10)
+        if mfi > 80:
+            s -= 8
+        elif mfi < 20:
+            s += 8
+        detail["MFI"] = round(float(mfi), 1)
     vr = last.get("vol_ratio")
     c, hi = last["Close"], last.get("hi_52w")
     if vr is not None and np.isfinite(vr) and hi and c >= hi * 0.99:

@@ -20,10 +20,25 @@ import pandas as pd
 import yfinance as yf
 
 try:
-    import news as news_mod          # 新闻情绪模块 (可选)
+    import news as news_mod          # 美股英文新闻情绪 (可选)
     _HAS_NEWS = True
 except Exception:
     _HAS_NEWS = False
+
+try:
+    import cn_news                    # A股中文新闻情绪 (可选, 需 akshare)
+    _HAS_CN_NEWS = True
+except Exception:
+    _HAS_CN_NEWS = False
+
+
+def _news_provider(ticker: str):
+    """按代码后缀选新闻源: .SS/.SZ -> 中文; 其余 -> 英文。"""
+    if ticker.endswith((".SS", ".SZ")) and _HAS_CN_NEWS:
+        return cn_news
+    if _HAS_NEWS:
+        return news_mod
+    return None
 
 try:
     import factors_plus              # 基本面/分析师/资金流 (可选)
@@ -112,6 +127,32 @@ def add_indicators(df: pd.DataFrame) -> pd.DataFrame:
     d["BB_dn"] = mb - 2 * sd
     d["BB_pctB"] = (c - d["BB_dn"]) / (d["BB_up"] - d["BB_dn"])
     d["ATR"] = _atr(d, 14)
+    # ADX 趋势强度 (>25 趋势强, <20 震荡)
+    h, l = d["High"], d["Low"]
+    up_move = h.diff()
+    dn_move = -l.diff()
+    plus_dm = np.where((up_move > dn_move) & (up_move > 0), up_move, 0.0)
+    minus_dm = np.where((dn_move > up_move) & (dn_move > 0), dn_move, 0.0)
+    tr = pd.concat([h - l, (h - c.shift()).abs(), (l - c.shift()).abs()], axis=1).max(axis=1)
+    atr14 = tr.ewm(alpha=1/14, adjust=False).mean()
+    plus_di = 100 * pd.Series(plus_dm, index=d.index).ewm(alpha=1/14, adjust=False).mean() / atr14
+    minus_di = 100 * pd.Series(minus_dm, index=d.index).ewm(alpha=1/14, adjust=False).mean() / atr14
+    dx = 100 * (plus_di - minus_di).abs() / (plus_di + minus_di).replace(0, np.nan)
+    d["ADX"] = dx.ewm(alpha=1/14, adjust=False).mean()
+    d["plus_DI"], d["minus_DI"] = plus_di, minus_di
+    # KDJ 随机指标
+    low_n = l.rolling(9).min()
+    high_n = h.rolling(9).max()
+    rsv = (c - low_n) / (high_n - low_n).replace(0, np.nan) * 100
+    d["K"] = rsv.ewm(com=2, adjust=False).mean()
+    d["D"] = d["K"].ewm(com=2, adjust=False).mean()
+    d["J"] = 3 * d["K"] - 2 * d["D"]
+    # MFI 资金流量指标 (量价版 RSI)
+    tp = (h + l + c) / 3
+    mf = tp * d["Volume"]
+    pos_mf = mf.where(tp > tp.shift(), 0).rolling(14).sum()
+    neg_mf = mf.where(tp < tp.shift(), 0).rolling(14).sum()
+    d["MFI"] = 100 - 100 / (1 + pos_mf / neg_mf.replace(0, np.nan))
     # 资金流指标
     vol = d["Volume"].replace(0, np.nan)
     d["OBV"] = (np.sign(c.diff()).fillna(0) * d["Volume"]).cumsum()
@@ -146,6 +187,14 @@ def score_factors(d: pd.DataFrame, bench: pd.Series | None = None) -> dict:
         trend += 20 if c > last["SMA200"] else -20
     if not np.isnan(last["SMA50"]) and not np.isnan(last["SMA200"]):
         trend += 15 if last["SMA50"] > last["SMA200"] else -15   # 金叉/死叉
+    # ADX 趋势强度加权: 强趋势放大方向, 震荡市削弱
+    adx, pdi, mdi = last.get("ADX"), last.get("plus_DI"), last.get("minus_DI")
+    if adx is not None and np.isfinite(adx):
+        direction = 1 if (pdi or 0) >= (mdi or 0) else -1
+        if adx > 25:
+            trend += direction * min((adx - 25) * 0.6, 15)        # 强趋势确认
+        elif adx < 20:
+            trend = 50 + (trend - 50) * 0.6                        # 震荡市打折
     trend = _clip01(trend)
 
     # 2) 动量: MACD 柱 + 6 月/1 月动量
@@ -159,6 +208,15 @@ def score_factors(d: pd.DataFrame, bench: pd.Series | None = None) -> dict:
         mom += np.clip(last["mom_126"] * 80, -20, 20)
     if not np.isnan(last["mom_21"]):
         mom += np.clip(last["mom_21"] * 120, -18, 18)
+    # KDJ: 金叉(K上穿D)加分, 高位钝化减分
+    k, dval, j = last.get("K"), last.get("D"), last.get("J")
+    if k is not None and np.isfinite(k):
+        mom += 8 if k > dval else -8
+        if j is not None and np.isfinite(j):
+            if j > 100:
+                mom -= 6          # 超买钝化
+            elif j < 0:
+                mom += 6          # 超卖
     mom = _clip01(mom)
 
     # 3) 强弱 (均值回归过滤): RSI + 布林 %B
@@ -300,11 +358,14 @@ def _perf_stats(equity: pd.Series, rets: pd.Series) -> dict:
     cagr = equity.iloc[-1] ** (252 / n) - 1
     sharpe = (rets.mean() / rets.std() * np.sqrt(252)) if rets.std() > 0 else 0
     dd = (equity / equity.cummax() - 1).min()
+    active = rets[rets != 0]
+    win = (active > 0).mean() * 100 if len(active) else 0
     return {
         "总收益%": round(total * 100, 1),
         "年化%": round(cagr * 100, 1),
         "夏普": round(sharpe, 2),
         "最大回撤%": round(dd * 100, 1),
+        "持仓胜率%": round(win, 1),
     }
 
 
@@ -329,11 +390,12 @@ def analyze(watchlist: dict[str, str], period: str = "2y",
         insufficient = n_bars < 60          # 不足以算 SMA50, 视为次新股
         factors = score_factors(d, bench)
 
-        # 第 6 因子: 新闻情绪
+        # 新闻情绪因子 (美股英文 / A股中文, 按代码自动选源)
         news_items = []
-        if use_news and _HAS_NEWS:
+        provider = _news_provider(t)
+        if use_news and provider is not None:
             try:
-                sent, news_items = news_mod.sentiment_factor(t)
+                sent, news_items = provider.sentiment_factor(t)
             except Exception:
                 sent = 50.0
         else:

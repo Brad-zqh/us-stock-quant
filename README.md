@@ -31,14 +31,18 @@ streamlit run app.py          # 浏览器打开 http://localhost:8501
 | 因子 | 权重 | 看什么 | 模块 |
 |------|------|--------|------|
 | 基本面 | 17% | PEG、营收增速、毛利率、ROE、净利率 | factors_plus.py |
-| 趋势 | 15% | 价格 vs SMA50/200、金叉死叉 | engine.py |
+| 趋势 | 15% | 价格 vs SMA50/200、金叉死叉、**ADX趋势强度** | engine.py |
 | 分析师 | 13% | 华尔街评级均值、目标价上行空间、覆盖度 | factors_plus.py |
-| 动量 | 12% | MACD、6月/1月动量 | engine.py |
-| 资金流 | 10% | OBV 能量潮、Chaikin CMF、放量突破52周高 | factors_plus.py |
+| 动量 | 12% | MACD、6月/1月动量、**KDJ随机指标** | engine.py |
+| 资金流 | 10% | OBV、Chaikin CMF、**MFI资金流量**、放量突破52周高 | factors_plus.py |
 | 风险 | 10% | 年化波动率 | engine.py |
 | 相对大盘 | 8% | 近63日 vs QQQ | engine.py |
-| 新闻情绪 | 8% | 个股新闻 VADER+金融词典情绪 | news.py |
+| 新闻情绪 | 8% | **美股英文(VADER) / A股中文(akshare)** 金融词典情绪 | news.py / cn_news.py |
 | 强弱 | 7% | RSI、布林 %B | engine.py |
+
+> **技术指标全集**：SMA20/50/200、EMA、MACD、RSI、布林带、ATR、**ADX/+DI/−DI、KDJ、MFI**、OBV、CMF、52周高。
+> **A股中文新闻**：`cn_news.py` 用 akshare 抓东方财富个股新闻 + 中文金融情绪词典（懂"涨停/减持/商誉减值"等金融语义）。
+> **关于"准不准"**：量化打分是**排序/择时工具不是预测器**。每只票的回测面板给出年化/夏普/最大回撤/**持仓胜率**，准确度以这些可量化指标为准。
 
 **信号档位**：≥70 强烈买入 · 58~70 买入 · 45~58 持有 · 35~45 减仓 · <35 卖出。
 **风控**：止损 = 现价 − 2.5×ATR，目标 = +4×ATR；仓位按分数与波动率调整，单票上限 25%。

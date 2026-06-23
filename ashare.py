@@ -59,11 +59,12 @@ def theme_of(code: str) -> str:
 
 
 def screen(exclude: set[str] | None = None, period: str = "1y",
-           use_fundamentals: bool = True, top: int = 15) -> pd.DataFrame:
-    """A 股扫描 (固定不用英文新闻)。"""
+           use_fundamentals: bool = True, top: int = 15,
+           use_news: bool = True) -> pd.DataFrame:
+    """A 股扫描。use_news=True 时用中文新闻情绪 (akshare)。"""
     exclude = exclude or set()
     wl = {k: v for k, v in _flatten(A_UNIVERSE).items() if k not in exclude}
-    res = engine.analyze(wl, period=period, use_news=False,
+    res = engine.analyze(wl, period=period, use_news=use_news,
                          use_fundamentals=use_fundamentals)
     t = res["table"].copy()
     t["主题"] = t["代码"].map(theme_of)

@@ -175,6 +175,17 @@ with tab2:
                                  f"<span style='font-size:0.82em'>{txt}</span>",
                                  unsafe_allow_html=True)
 
+        # 原始技术指标读数 (透明化)
+        last = d.iloc[-1]
+        def _v(col, f="{:.1f}"):
+            x = last.get(col)
+            return f.format(x) if x is not None and pd.notna(x) else "—"
+        st.caption(
+            f"📐 技术指标　RSI {_v('RSI')}　ADX {_v('ADX')} (>25趋势强)　"
+            f"KDJ-J {_v('J')}　MFI {_v('MFI')} (>80超买/<20超卖)　"
+            f"CMF {_v('CMF','{:.3f}')}　布林%B {_v('BB_pctB','{:.2f}')}　"
+            f"年化波动 {_v('vol_ann','{:.0%}')}")
+
         left, right = st.columns([3, 2])
 
         # ---- 左: K线 + 均线 + MACD + RSI
