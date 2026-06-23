@@ -44,7 +44,8 @@ for line in codes_text.strip().splitlines():
 
 @st.cache_data(ttl=900, show_spinner="📡 拉取行情并计算中…")
 def load(wl: dict, period: str, use_news: bool, use_fund: bool):
-    return engine.analyze(wl, period=period, use_news=use_news, use_fundamentals=use_fund)
+    return engine.analyze(wl, period=period, use_news=use_news,
+                          use_fundamentals=use_fund, use_earnings=True)
 
 
 @st.cache_data(ttl=1800, show_spinner="🔭 扫描美股股票池中…")
@@ -55,14 +56,15 @@ def load_screen(market: str, exclude: tuple, period: str, use_fund: bool, top: i
 
 
 @st.cache_data(ttl=1800, show_spinner="🇨🇳 扫描A股龙头中…")
-def load_ashare(period: str, use_fund: bool, top: int):
-    return ashare.screen(period=period, use_fundamentals=use_fund, top=top)
+def ashare_screen_cached(period: str, use_fund: bool, top: int, use_news: bool):
+    return ashare.screen(period=period, use_fundamentals=use_fund,
+                         top=top, use_news=use_news)
 
 
 if refresh:
     load.clear()
     load_screen.clear()
-    load_ashare.clear()
+    ashare_screen_cached.clear()
 
 res = load(watchlist, period, use_news, use_fund)
 table, detail = res["table"], res["detail"]
@@ -90,9 +92,9 @@ with st.sidebar.expander("📤 推送信号报告 (邮件/微信)"):
         if cwx:
             st.write(notify.send_wechat("美股量化信号", md))
 
-tab1, tab2, tab3, tab4, tab5 = st.tabs(
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(
     ["🏆 自选股排名", "🔍 个股详情", "🔭 美股科技池",
-     "🇺🇸 美股其他板块", "🇨🇳 A股选股"])
+     "🇺🇸 美股其他板块", "🇨🇳 A股选股", "📖 模型原理"])
 
 
 def _render_screen(scr, currency="$"):
@@ -134,7 +136,8 @@ with tab1:
     factor_cols = [c for c in ["趋势", "动量", "资金流", "基本面", "分析师",
                                "新闻情绪", "强弱", "相对大盘", "风险"] if c in table.columns]
     show_cols = (["代码", "名称", "综合分", "信号"] + factor_cols +
-                 ["现价", "止损价", "目标价", "止损%", "目标%", "建议仓位%"])
+                 ["现价", "止损价", "目标价", "止损%", "目标%", "建议仓位%"] +
+                 (["距财报"] if "距财报" in table.columns else []))
     disp = table[show_cols].copy()
     st.dataframe(
         disp.style
@@ -162,6 +165,14 @@ with tab2:
         c3.metric("现价", f"${plan['现价']}")
         c4.metric("止损价", f"${plan['止损价']}", f"{plan['止损%']}%")
         c5.metric("目标价", f"${plan['目标价']}", f"{plan['目标%']}%")
+
+        earn = info.get("earnings")
+        if earn:
+            if earn["soon"]:
+                st.error(f"⚠️ **财报临近**: {earn['days']} 天后 ({earn['date']}) 发财报 — "
+                         "财报前后波动剧烈, 谨慎追高, 可等财报落地再决策。")
+            else:
+                st.caption(f"📅 下次财报: {earn['date']} (还有 {earn['days']} 天)")
 
         # 基本面 / 分析师 / 资金流 明细
         pd_detail = info.get("plus_detail", {})
@@ -277,8 +288,13 @@ with tab3:
     cset[2].caption(f"覆盖主题: {' · '.join(universe.TECH_UNIVERSE.keys())}")
 
     exclude = set(watchlist.keys()) if excl_held else set()
-    scr = load_screen("科技", tuple(sorted(exclude)), period, use_fund, top_n)
-    _render_screen(scr)
+    if st.button("🔭 开始扫描科技池 (约30-60秒)", key="scan_tech", type="primary") \
+            or st.session_state.get("scanned_tech"):
+        st.session_state["scanned_tech"] = True
+        scr = load_screen("科技", tuple(sorted(exclude)), period, use_fund, top_n)
+        _render_screen(scr)
+    else:
+        st.info("点上方按钮开始扫描 ~45 只科技龙头。(放在按钮后是为了页面打开够快)")
     st.caption("股票池在 universe.py 里, 可自行增删。扫描默认不含新闻(提速), 缓存 30 分钟。"
                "⚠️ 仅供研究, 非投资建议。")
 
@@ -288,8 +304,13 @@ with tab4:
     st.caption(f"覆盖: {' · '.join(universe.US_SECTORS.keys())}")
     c4a, c4b = st.columns([1, 3])
     topn4 = c4a.slider("显示前 N 名", 5, 30, 15, key="topn4")
-    scr4 = load_screen("非科技", (), period, use_fund, topn4)
-    _render_screen(scr4)
+    if st.button("🇺🇸 开始扫描非科技板块 (约30-60秒)", key="scan_other", type="primary") \
+            or st.session_state.get("scanned_other"):
+        st.session_state["scanned_other"] = True
+        scr4 = load_screen("非科技", (), period, use_fund, topn4)
+        _render_screen(scr4)
+    else:
+        st.info("点上方按钮开始扫描 ~40 只金融/医疗/消费/能源工业/通信龙头。")
     st.caption("⚠️ 仅供研究, 非投资建议。")
 
 # ================================================================ TAB 5 A股
@@ -299,6 +320,60 @@ with tab5:
                "说明: A股无英文新闻因子; 分析师评级部分缺失时取中性。价格为人民币¥。")
     c5a, c5b = st.columns([1, 3])
     topn5 = c5a.slider("显示前 N 名", 5, 30, 15, key="topn5")
-    scr5 = load_ashare(period, use_fund, topn5)
-    _render_screen(scr5, currency="¥")
+    a_news = c5b.checkbox("中文新闻情绪 (akshare, 海外服务器可能超时)", value=False)
+    if st.button("🇨🇳 开始扫描A股 (约1-2分钟)", key="scan_a", type="primary") \
+            or st.session_state.get("scanned_a"):
+        st.session_state["scanned_a"] = True
+        scr5 = ashare_screen_cached(period, use_fund, topn5, a_news)
+        _render_screen(scr5, currency="¥")
+    else:
+        st.info("点上方按钮开始扫描 A股龙头。注意: 本应用部署在海外服务器, "
+                "A股数据 (尤其中文新闻) 可能较慢或超时; 本地运行最稳。")
     st.caption("股票池在 ashare.py 里。沪市.SS/深市.SZ。⚠️ 仅供研究, 非投资建议。")
+
+# ================================================================ TAB 6 模型原理
+with tab6:
+    st.markdown("## 📖 模型用什么指标、怎么「预测」")
+    st.warning("先说清楚: 这是一个**多因子打分排序 + 择时**工具, **不是股价预测器**。"
+               "没有任何模型能准确预测股价。它的作用是把一篮子股票按「当前性价比」排序, "
+               "并给出基于规则的买卖区间。是否有效, 以下方**回测指标(年化/夏普/胜率)**为准。")
+
+    st.markdown("### 综合分 = 9 个因子加权 (0~100 分)")
+    wdf = pd.DataFrame([
+        ["基本面", "17%", "PEG、营收增速、毛利率、ROE、净利率 — 公司值不值这个价", "yfinance .info"],
+        ["趋势", "15%", "价格 vs SMA50/200、金叉死叉、ADX趋势强度 — 方向与强度", "技术"],
+        ["分析师", "13%", "华尔街评级均值、目标价上行空间、覆盖分析师数 — 机构怎么看", "yfinance"],
+        ["动量", "12%", "MACD、6月/1月涨幅、KDJ随机指标 — 涨势能否延续", "技术"],
+        ["资金流", "10%", "OBV能量潮、Chaikin CMF、MFI、放量突破52周高 — 钱在进还是出", "技术"],
+        ["风险", "10%", "年化波动率 — 越稳越高分", "技术"],
+        ["相对大盘", "8%", "近63日跑赢/跑输 QQQ(纳指) — 相对强度", "技术"],
+        ["新闻情绪", "8%", "美股英文(VADER)/A股中文(akshare) + 金融词典情绪", "新闻"],
+        ["强弱", "7%", "RSI、布林带%B — 短期超买超卖", "技术"],
+    ], columns=["因子", "权重", "看什么", "来源"])
+    st.table(wdf)
+
+    st.markdown("""
+### 打分→信号 的规则
+| 综合分 | 信号 | 含义 |
+|---|---|---|
+| ≥70 | 强烈买入 ▲▲ | 多因子共振 |
+| 58–70 | 买入 ▲ | 偏多 |
+| 45–58 | 持有 — | 中性 |
+| 35–45 | 减仓 ▼ | 偏空 |
+| <35 | 卖出 ▼▼ | 多因子转弱 |
+
+### 风控怎么算 (下单可直接参考)
+- **止损价** = 现价 − 2.5×ATR(平均真实波幅)
+- **目标价** = 现价 + 4×ATR (盈亏比约 1.6:1)
+- **建议仓位** = 按综合分 × 波动率调整, 单票上限 25% (分越高、波动越低, 仓位越大)
+- **财报提醒**: 财报前后波动大, 临近(≤7天)标 ⚠️ 避免追高
+
+### "预测原理"的本质
+不是预测某天涨跌, 而是: **当多个相互独立的维度(基本面便宜 + 趋势向上 + 资金流入 + 机构看多 + 消息面正面)同时指向同一方向时, 该股中期占优的概率更高。** 单一指标噪声大, 多因子投票降低误判 — 这是量化选股的核心思想。
+
+### 怎么判断"准不准"
+打开 **🔍 个股详情**, 看回测面板: **年化收益、夏普比率、最大回撤、持仓胜率**。
+这套策略在该股历史上的真实表现, 比"乍一看准不准"客观得多。
+
+> 完整指标全集: SMA20/50/200、EMA、MACD、RSI、布林带、ATR、ADX/±DI、KDJ、MFI、OBV、CMF、52周高。
+""")

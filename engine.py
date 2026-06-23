@@ -372,8 +372,16 @@ def _perf_stats(equity: pd.Series, rets: pd.Series) -> dict:
 # ----------------------------------------------------------------------------
 # 顶层: 一次性分析整个自选股
 # ----------------------------------------------------------------------------
+try:
+    import earnings as earnings_mod   # 财报日提醒 (可选)
+    _HAS_EARN = True
+except Exception:
+    _HAS_EARN = False
+
+
 def analyze(watchlist: dict[str, str], period: str = "2y",
-            use_news: bool = True, use_fundamentals: bool = True) -> dict:
+            use_news: bool = True, use_fundamentals: bool = True,
+            use_earnings: bool = False) -> dict:
     tickers = list(watchlist.keys())
     data = fetch(tickers + [BENCHMARK], period=period)
     bench = data.get(BENCHMARK, {}).get("Close") if BENCHMARK in data else None
@@ -418,17 +426,29 @@ def analyze(watchlist: dict[str, str], period: str = "2y",
         stats = _perf_stats(bt["策略"], bt["策略"].pct_change())
         bh = _perf_stats(bt["买入持有"], bt["买入持有"].pct_change())
 
+        # 财报日临近 (仅自选股, 默认开; 大池子关闭以提速)
+        earn = None
+        if use_earnings and _HAS_EARN:
+            try:
+                earn = earnings_mod.next_earnings(t)
+            except Exception:
+                earn = None
+        earn_cell = ""
+        if earn:
+            earn_cell = f"⚠️{earn['days']}天" if earn["soon"] else f"{earn['days']}天"
+
         name = watchlist[t] + ("　⚠️数据不足" if insufficient else "")
         if insufficient:
             action = "观察 (次新股)"
         row = {"代码": t, "名称": name, "综合分": sc,
-               "信号": action, "_color": color, **factors, **plan}
+               "信号": action, "_color": color, **factors, **plan,
+               "距财报": earn_cell}
         results.append(row)
         detail[t] = {"df": d, "factors": factors, "score": sc, "action": action,
                      "color": color, "plan": plan, "backtest": bt,
                      "stats": stats, "bh_stats": bh, "news": news_items,
                      "n_bars": n_bars, "insufficient": insufficient,
-                     "plus_detail": plus_detail}
+                     "plus_detail": plus_detail, "earnings": earn}
 
     table = pd.DataFrame(results).sort_values("综合分", ascending=False).reset_index(drop=True)
     return {"table": table, "detail": detail,

@@ -55,6 +55,16 @@ def build_report(res: dict, top_news: int = 2) -> tuple[str, str]:
             f"| **{r['代码']}** | {r['综合分']} | {r['信号']} | {r['现价']} | "
             f"{r['止损价']} | {r['目标价']} | {r['建议仓位%']}% |")
 
+    # 财报临近提醒
+    warns = []
+    for code, det in res.get("detail", {}).items():
+        e = det.get("earnings")
+        if e and e.get("soon"):
+            warns.append(f"{code} {e['days']}天后({e['date']})财报")
+    if warns:
+        lines_txt += ["", "⚠️ 财报临近(谨慎追高): " + "; ".join(warns)]
+        lines_md += ["\n### ⚠️ 财报临近 (谨慎追高)", *[f"- {w}" for w in warns]]
+
     # 重点票的新闻
     buys = t[t["综合分"] >= 58]
     if len(buys):
@@ -125,7 +135,7 @@ def send_wechat(title: str, md_body: str, key: str | None = None) -> str:
 def run_and_push(watchlist=None, period="2y", email=True, wechat=True) -> dict:
     """跑一次分析并按配置推送。供命令行/定时任务调用。"""
     wl = watchlist or engine.DEFAULT_WATCHLIST
-    res = engine.analyze(wl, period=period)
+    res = engine.analyze(wl, period=period, use_earnings=True)
     txt, md = build_report(res)
     out = {"report_txt": txt, "report_md": md}
     subj = f"美股量化信号 {res['asof'][:10]}"

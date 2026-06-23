@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.brad.stockquant</string>
+
+    <!-- 运行: anaconda python3 跑 run_daily.py -->
+    <key>ProgramArguments</key>
+    <array>
+        <string>/opt/anaconda3/bin/python3</string>
+        <string>run_daily.py</string>
+    </array>
+
+    <!-- 工作目录 (项目根目录) -->
+    <key>WorkingDirectory</key>
+    <string>/Users/brad/Library/CloudStorage/OneDrive-个人/Stock Quantitative Model</string>
+
+    <!-- 每个工作日 08:00 触发 (Weekday 1-5 = 周一至周五); 改 Hour/Minute 即可调时间 -->
+    <key>StartCalendarInterval</key>
+    <array>
+        <dict><key>Weekday</key><integer>1</integer><key>Hour</key><integer>8</integer><key>Minute</key><integer>0</integer></dict>
+        <dict><key>Weekday</key><integer>2</integer><key>Hour</key><integer>8</integer><key>Minute</key><integer>0</integer></dict>
+        <dict><key>Weekday</key><integer>3</integer><key>Hour</key><integer>8</integer><key>Minute</key><integer>0</integer></dict>
+        <dict><key>Weekday</key><integer>4</integer><key>Hour</key><integer>8</integer><key>Minute</key><integer>0</integer></dict>
+        <dict><key>Weekday</key><integer>5</integer><key>Hour</key><integer>8</integer><key>Minute</key><integer>0</integer></dict>
+    </array>
+
+    <!-- 日志 -->
+    <key>StandardOutPath</key>
+    <string>/Users/brad/Library/CloudStorage/OneDrive-个人/Stock Quantitative Model/daily_push.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/brad/Library/CloudStorage/OneDrive-个人/Stock Quantitative Model/daily_push.log</string>
+
+    <key>RunAtLoad</key>
+    <false/>
+</dict>
+</plist>
