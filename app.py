@@ -16,6 +16,7 @@ import streamlit as st
 import engine
 import notify
 import universe
+import ashare
 
 st.set_page_config(page_title="美股量化选股看板", layout="wide", page_icon="📈")
 
@@ -46,15 +47,22 @@ def load(wl: dict, period: str, use_news: bool, use_fund: bool):
     return engine.analyze(wl, period=period, use_news=use_news, use_fundamentals=use_fund)
 
 
-@st.cache_data(ttl=1800, show_spinner="🔭 扫描高科技股票池中…")
-def load_screen(exclude: tuple, period: str, use_fund: bool, top: int):
+@st.cache_data(ttl=1800, show_spinner="🔭 扫描美股股票池中…")
+def load_screen(market: str, exclude: tuple, period: str, use_fund: bool, top: int):
+    pool = universe.US_SECTORS if market == "非科技" else universe.TECH_UNIVERSE
     return universe.screen(exclude=set(exclude), period=period,
-                           use_news=False, use_fundamentals=use_fund, top=top)
+                           use_news=False, use_fundamentals=use_fund, top=top, pool=pool)
+
+
+@st.cache_data(ttl=1800, show_spinner="🇨🇳 扫描A股龙头中…")
+def load_ashare(period: str, use_fund: bool, top: int):
+    return ashare.screen(period=period, use_fundamentals=use_fund, top=top)
 
 
 if refresh:
     load.clear()
     load_screen.clear()
+    load_ashare.clear()
 
 res = load(watchlist, period, use_news, use_fund)
 table, detail = res["table"], res["detail"]
@@ -82,7 +90,31 @@ with st.sidebar.expander("📤 推送信号报告 (邮件/微信)"):
         if cwx:
             st.write(notify.send_wechat("美股量化信号", md))
 
-tab1, tab2, tab3 = st.tabs(["🏆 自选股排名", "🔍 个股详情", "🔭 高科技选股池"])
+tab1, tab2, tab3, tab4, tab5 = st.tabs(
+    ["🏆 自选股排名", "🔍 个股详情", "🔭 美股科技池",
+     "🇺🇸 美股其他板块", "🇨🇳 A股选股"])
+
+
+def _render_screen(scr, currency="$"):
+    """通用: 渲染一个扫描排名表 + 买入候选汇总。"""
+    if scr is None or len(scr) == 0:
+        st.warning("未取到数据, 请稍后刷新。")
+        return
+    cols_scr = [c for c in ["代码", "名称", "主题", "综合分", "信号", "趋势", "动量",
+                            "资金流", "基本面", "分析师", "现价", "止损价", "目标价",
+                            "建议仓位%"] if c in scr.columns]
+    grad = [c for c in ["综合分", "趋势", "动量", "资金流", "基本面", "分析师"] if c in scr.columns]
+    fmt = {c: "{:.2f}" for c in ["现价", "止损价", "目标价"] if c in scr.columns}
+    fmt["建议仓位%"] = "{:.1f}"
+    st.dataframe(
+        scr[cols_scr].style
+        .background_gradient(subset=grad, cmap="RdYlGn", vmin=0, vmax=100)
+        .format(fmt),
+        use_container_width=True, height=min(60 + 36 * len(scr), 700))
+    buys = scr[scr["综合分"] >= 58]
+    if len(buys):
+        st.success("**🟢 买入级候选 (综合分≥58)**　" +
+                   "　".join(f"{r['代码']} {r['名称']}({r['综合分']})" for _, r in buys.iterrows()))
 
 # ================================================================ TAB 1 排名
 with tab1:
@@ -234,23 +266,28 @@ with tab3:
     cset[2].caption(f"覆盖主题: {' · '.join(universe.TECH_UNIVERSE.keys())}")
 
     exclude = set(watchlist.keys()) if excl_held else set()
-    scr = load_screen(tuple(sorted(exclude)), period, use_fund, top_n)
-
-    cols_scr = [c for c in ["代码", "名称", "主题", "综合分", "信号", "趋势", "动量",
-                            "资金流", "基本面", "分析师", "现价", "止损价", "目标价",
-                            "建议仓位%"] if c in scr.columns]
-    grad = [c for c in ["综合分", "趋势", "动量", "资金流", "基本面", "分析师"] if c in scr.columns]
-    st.dataframe(
-        scr[cols_scr].style
-        .background_gradient(subset=grad, cmap="RdYlGn", vmin=0, vmax=100)
-        .format({"现价": "{:.2f}", "止损价": "{:.2f}", "目标价": "{:.2f}", "建议仓位%": "{:.1f}"}),
-        use_container_width=True, height=min(60 + 36 * len(scr), 700))
-
-    # 主题分布
-    if "主题" in scr.columns and len(scr):
-        buys = scr[scr["综合分"] >= 58]
-        if len(buys):
-            st.success("**🟢 当前买入级候选 (综合分≥58)**　" +
-                       "　".join(f"{r['代码']}({r['综合分']})" for _, r in buys.iterrows()))
+    scr = load_screen("科技", tuple(sorted(exclude)), period, use_fund, top_n)
+    _render_screen(scr)
     st.caption("股票池在 universe.py 里, 可自行增删。扫描默认不含新闻(提速), 缓存 30 分钟。"
                "⚠️ 仅供研究, 非投资建议。")
+
+# ================================================================ TAB 4 美股其他板块
+with tab4:
+    st.markdown("#### 🇺🇸 美股非科技板块 — 价值/防御/周期, 给科技仓位做分散")
+    st.caption(f"覆盖: {' · '.join(universe.US_SECTORS.keys())}")
+    c4a, c4b = st.columns([1, 3])
+    topn4 = c4a.slider("显示前 N 名", 5, 30, 15, key="topn4")
+    scr4 = load_screen("非科技", (), period, use_fund, topn4)
+    _render_screen(scr4)
+    st.caption("⚠️ 仅供研究, 非投资建议。")
+
+# ================================================================ TAB 5 A股
+with tab5:
+    st.markdown("#### 🇨🇳 A股龙头选股 — 沪深主要行业龙头")
+    st.caption(f"覆盖: {' · '.join(ashare.A_UNIVERSE.keys())}　|　"
+               "说明: A股无英文新闻因子; 分析师评级部分缺失时取中性。价格为人民币¥。")
+    c5a, c5b = st.columns([1, 3])
+    topn5 = c5a.slider("显示前 N 名", 5, 30, 15, key="topn5")
+    scr5 = load_ashare(period, use_fund, topn5)
+    _render_screen(scr5, currency="¥")
+    st.caption("股票池在 ashare.py 里。沪市.SS/深市.SZ。⚠️ 仅供研究, 非投资建议。")
