@@ -1,0 +1,11 @@
+{
+  "_说明": "把本文件复制为 config.json 并填入真实凭证。config.json 不要分享给别人。",
+  "email": {
+    "smtp": "smtp.zju.edu.cn",
+    "port": 465,
+    "user": "zhaoqiuhao@zju.edu.cn",
+    "password": "在此填邮箱授权码(非登录密码)",
+    "to": "zhaoqiuhao@zju.edu.cn"
+  },
+  "serverchan_key": "在此填 Server酱 SendKey, 申请见 https://sct.ftqq.com"
+}

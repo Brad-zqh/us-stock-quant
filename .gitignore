@@ -1,0 +1,10 @@
+# 敏感凭证 — 绝不上传
+config.json
+
+# 运行产物
+streamlit.log
+__pycache__/
+*.pyc
+.DS_Store
+.ipynb_checkpoints/
+*.csv
