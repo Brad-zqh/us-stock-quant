@@ -95,6 +95,22 @@ res = load(watchlist, period, use_news, use_fund)
 table, detail = res["table"], res["detail"]
 
 st.title("📈 美股量化选股看板")
+
+# ---------------------------------------------------------------- 顶部下载 App 入口
+_DL_PAGE = "https://brad-zqh.github.io/us-stock-quant/download.html"
+_REL = "https://github.com/Brad-zqh/us-stock-quant/releases/latest/download"
+_pill = ("text-decoration:none;padding:3px 10px;border-radius:999px;"
+         "border:1px solid #2f3640;background:#161b22;color:#e6e6e6;"
+         "font-size:0.85em;white-space:nowrap")
+st.markdown(
+    "<div style='display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:-6px 0 10px'>"
+    "<span style='color:#9aa0aa;font-size:0.85em'>📲 下载 App:</span>"
+    f"<a target='_blank' rel='noopener' style='{_pill}' href='{_REL}/StockQuant-Windows-Setup.exe'>🪟 Windows</a>"
+    f"<a target='_blank' rel='noopener' style='{_pill}' href='{_REL}/StockQuant-macOS.dmg'>🍎 macOS</a>"
+    f"<a target='_blank' rel='noopener' style='{_pill}' href='{_REL}/StockQuant-Android.apk'>🤖 Android</a>"
+    f"<a target='_blank' rel='noopener' style='{_pill};background:#ef5350;border-color:#ef5350;color:#fff' href='{_DL_PAGE}'>📥 全部下载 / iPhone</a>"
+    "</div>", unsafe_allow_html=True)
+
 reg = res.get("regime", {})
 if reg:
     rc = {"🟢": "#16a34a", "🟡": "#f59e0b", "🔴": "#dc2626"}.get(reg["label"][:1], "#888")
