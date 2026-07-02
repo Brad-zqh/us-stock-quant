@@ -1,0 +1,60 @@
+name: AI Trader Daily
+
+# 每个交易日美股收盘后自动跑一次 AI 交易员:
+# 分析自选股 → 模拟账户调仓 → 生成操盘日志 → 微信推送 → 账户状态提交回仓库。
+#
+# 需要在仓库 Settings → Secrets and variables → Actions 里配置:
+#   SCT_KEY       (必填) Server酱 SendKey, 用于微信推送
+#   LLM_API_KEY   (可选) DeepSeek 等大模型 API Key; 不填则用免费规则版日志
+#   LLM_PROVIDER  (可选) 大模型厂商, 如 deepseek
+
+on:
+  schedule:
+    # 周一到周五 UTC 21:30 (美东收盘 16:00 后, 夏令时约收盘后 1.5h)。
+    # cron 用 UTC; 实际触发可能有几分钟到十几分钟延迟, 不影响。
+    - cron: "30 21 * * 1-5"
+  workflow_dispatch: {}   # 也可在 Actions 页手动触发
+
+permissions:
+  contents: write          # 允许把账户状态提交回仓库
+
+concurrency:
+  group: ai-trader
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install yfinance pandas numpy vaderSentiment requests
+
+      - name: Run AI trader
+        env:
+          SCT_KEY: ${{ secrets.SCT_KEY }}
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+          LLM_PROVIDER: ${{ secrets.LLM_PROVIDER }}
+        run: python run_ai_trader.py
+
+      - name: Commit account state
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f state/paper_account.json
+          if git diff --cached --quiet; then
+            echo "账户无变化, 跳过提交。"
+          else
+            git commit -m "chore(ai-trader): 每日账户更新 [skip ci]"
+            git push
+          fi

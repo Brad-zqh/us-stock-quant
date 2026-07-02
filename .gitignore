@@ -4,6 +4,7 @@ config.json
 # 运行产物
 streamlit.log
 paper_account.json
+!state/paper_account.json
 __pycache__/
 *.pyc
 .DS_Store
