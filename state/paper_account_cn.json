@@ -1,0 +1,16 @@
+{
+  "cash": 100000.0,
+  "start_cash": 100000.0,
+  "positions": {},
+  "trades": [],
+  "equity_curve": [
+    {
+      "date": "2026-07-02",
+      "total": 100000.0,
+      "cash": 100000.0,
+      "invested": 0.0
+    }
+  ],
+  "created": "2026-07-02 14:45",
+  "last_run": "2026-07-02 14:45"
+}
