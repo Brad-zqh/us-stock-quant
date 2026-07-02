@@ -23,16 +23,42 @@ import funds
 import explain
 import paper
 import llm
+import auth
+import userstore
 
 st.set_page_config(page_title="皓哥量化", layout="wide", page_icon="📈")
+
+# 多用户登录门 (未启用多用户时返回 None, 保持单用户模式; 未登录会在此停止渲染)
+CURRENT_USER = auth.login_gate()
 
 # ---------------------------------------------------------------- 侧边栏配置
 st.sidebar.title("⚙️ 配置")
 st.sidebar.caption("数据: yfinance 日线 · 仅供研究, 非投资建议")
 
-default_codes = "\n".join(f"{k}  {v}" for k, v in engine.DEFAULT_WATCHLIST.items())
+# 已登录: 顶部显示用户 + 退出
+if CURRENT_USER:
+    _uc1, _uc2 = st.sidebar.columns([2, 1])
+    _uc1.markdown(f"👤 **{CURRENT_USER}**" + ("　🛡️管理员" if auth.is_admin() else ""))
+    if _uc2.button("退出", key="logout_btn"):
+        auth.logout()
+        st.rerun()
+
+# 每人自选股默认值: 已登录用其账户里保存的, 否则用系统默认池
+_default_pool = "\n".join(f"{k}  {v}" for k, v in engine.DEFAULT_WATCHLIST.items())
+if CURRENT_USER:
+    _prof = userstore.get_profile(CURRENT_USER) or {}
+    _saved_wt = (_prof.get("watchlist_text") or "").strip()
+    default_codes = _saved_wt if _saved_wt else _default_pool
+else:
+    default_codes = _default_pool
 codes_text = st.sidebar.text_area(
     "自选股 (每行: 代码 空格 名称)", value=default_codes, height=200)
+if CURRENT_USER:
+    if st.sidebar.button("💾 保存自选股到我的账户", use_container_width=True):
+        if userstore.update_profile(CURRENT_USER, watchlist_text=codes_text):
+            st.sidebar.success("已保存到你的账户。")
+        else:
+            st.sidebar.error("保存失败, 请重试。")
 period = st.sidebar.selectbox("数据周期", ["1y", "2y", "5y"], index=1)
 use_news = st.sidebar.checkbox("启用新闻情绪因子 📰", value=True,
                                help="抓取个股新闻并做金融情绪分析")
@@ -204,9 +230,13 @@ with st.sidebar.expander("📤 推送信号报告 (邮件/微信)"):
         if cwx:
             st.write(notify.send_wechat("美股量化信号", md))
 
-tab1, tab2, tab8, tab9, tab3, tab4, tab5, tab7, tab6 = st.tabs(
-    ["🏆 自选股排名", "🔍 个股详情", "🧪 模拟盘", "🤖 AI 交易员", "🔭 美股科技池",
-     "🇺🇸 美股其他板块", "🇨🇳 A股选股", "💹 指数基金", "📖 模型原理"])
+_tab_labels = ["🏆 自选股排名", "🔍 个股详情", "🧪 模拟盘", "🤖 AI 交易员", "🔭 美股科技池",
+               "🇺🇸 美股其他板块", "🇨🇳 A股选股", "💹 指数基金", "📖 模型原理"]
+if CURRENT_USER:
+    _tab_labels.append("⚙️ 我的")
+_tabs = st.tabs(_tab_labels)
+tab1, tab2, tab8, tab9, tab3, tab4, tab5, tab7, tab6 = _tabs[:9]
+tab_me = _tabs[9] if CURRENT_USER else None
 
 
 def _render_screen(scr, currency="$"):
@@ -947,3 +977,62 @@ with tab6:
 
 > 完整指标全集: SMA20/50/200、EMA、MACD、RSI、布林带、ATR、ADX/±DI、KDJ、MFI、OBV、CMF、52周高。
 """)
+
+
+# ================================================================ TAB 我的 / 管理
+if tab_me is not None:
+    with tab_me:
+        st.subheader("⚙️ 我的账户与设置")
+        _p = userstore.get_profile(CURRENT_USER) or {}
+        st.markdown(f"**账户**：{CURRENT_USER}　|　注册：{_p.get('created_at','—')}"
+                    f"　|　上次登录：{_p.get('last_login','—')}")
+
+        st.markdown("#### 🔔 推送设置")
+        with st.form("me_notify"):
+            sk = st.text_input("微信推送 SendKey (Server酱)", value=_p.get("sendkey", "") or "",
+                               type="password",
+                               help="到 sct.ftqq.com 微信扫码拿 SendKey, 每天操盘播报推到你自己的微信。留空则不推送。")
+            nemail = st.text_input("通知邮箱", value=_p.get("notify_email", "") or CURRENT_USER)
+            okn = st.form_submit_button("保存推送设置", type="primary")
+        if okn:
+            if userstore.update_profile(CURRENT_USER, sendkey=sk, notify_email=nemail):
+                st.success("推送设置已保存。")
+            else:
+                st.error("保存失败, 请重试。")
+
+        st.markdown("#### 🔑 修改密码")
+        with st.form("me_pw"):
+            np1 = st.text_input("新密码 (≥6位)", type="password")
+            np2 = st.text_input("确认新密码", type="password")
+            okp = st.form_submit_button("更新密码")
+        if okp:
+            if np1 != np2:
+                st.error("两次密码不一致。")
+            else:
+                good, msg = userstore.change_password(CURRENT_USER, np1)
+                (st.success if good else st.error)(msg)
+
+        # 管理员: 所有用户一览
+        if auth.is_admin():
+            st.divider()
+            st.markdown("#### 🛡️ 管理员 · 所有用户")
+            _users = userstore.list_users()
+            st.caption(f"后端: {userstore.backend_name()}　|　共 {len(_users)} 位用户")
+            if _users:
+                import pandas as _pd
+                _df = _pd.DataFrame(_users)
+                for _col in ("email", "created_at", "last_login", "sendkey",
+                             "notify_email", "is_admin", "watchlist_text"):
+                    if _col not in _df.columns:
+                        _df[_col] = ""
+                _df["有微信推送"] = _df["sendkey"].apply(lambda x: "✅" if str(x).strip() else "—")
+                _show = _df[["email", "is_admin", "created_at", "last_login",
+                             "有微信推送", "notify_email"]].rename(
+                    columns={"email": "邮箱", "is_admin": "管理员", "created_at": "注册时间",
+                             "last_login": "上次登录", "notify_email": "通知邮箱"})
+                st.dataframe(_show, use_container_width=True,
+                             height=min(80 + 36 * len(_show), 500))
+            if userstore.using_supabase():
+                st.caption("也可到 Supabase 后台 → Table Editor → users 直接查看/编辑。")
+
+        st.caption("⚠️ 你的 SendKey/邮箱只保存在私有后端, 不进公开仓库, 仅用于给你推送。")

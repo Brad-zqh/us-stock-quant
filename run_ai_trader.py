@@ -30,6 +30,7 @@ import engine
 import paper
 import llm
 import notify
+import userstore
 
 # Windows 控制台默认 gbk 编码打不出 emoji, 统一切 UTF-8 (对 CI/Linux 无副作用)
 try:
@@ -147,6 +148,94 @@ def run_one_market(m: dict, dry: bool) -> dict | None:
     return {"section": section, "summ": summ, "title_bit": title_bit, "asof": res["asof"]}
 
 
+# ---------------------------------------------------------------- 每用户自选股推送
+def _parse_watchlist(text: str) -> dict:
+    """把用户自选股文本 (每行: 代码 空格 名称) 解析成 {code: name}。"""
+    wl = {}
+    for line in (text or "").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        parts = line.split(None, 1)
+        code = parts[0].strip()
+        name = parts[1].strip() if len(parts) > 1 else code
+        if code:
+            wl[code] = name
+    return wl
+
+
+def build_user_report(email: str, table, regime: str, asof: str) -> str:
+    """给单个用户生成一条自选股策略播报 (纯规则, 不烧大模型)。"""
+    lines = [f"## 📈 你的自选股策略  ({asof[:10]})"]
+    if regime:
+        lines.append(f"大盘环境: **{regime}**")
+    lines.append("")
+
+    if table is None or len(table) == 0:
+        lines.append("今日未取到你的自选股行情，请稍后在网页端刷新查看。")
+        return "\n".join(lines)
+
+    buys = table[table["综合分"] >= 58]
+    lines.append("### 🟢 今日买入候选")
+    if len(buys):
+        lines.append("| 代码 | 名称 | 综合分 | 信号 | 现价 | 建议仓位 |")
+        lines.append("|---|---|---|---|---|---|")
+        for _, r in buys.iterrows():
+            lines.append(
+                f"| **{r['代码']}** | {r.get('名称','')} | {r['综合分']:.0f} | "
+                f"{r.get('信号','')} | {r.get('现价','')} | {r.get('建议仓位%','')}% |")
+    else:
+        lines.append("今日无标的达到买入阈值(综合分≥58)，建议观望。")
+    lines.append("")
+
+    lines.append("### 📊 自选股综合排名")
+    lines.append("| 代码 | 名称 | 综合分 | 信号 | 现价 |")
+    lines.append("|---|---|---|---|---|")
+    for _, r in table.head(15).iterrows():
+        lines.append(
+            f"| **{r['代码']}** | {r.get('名称','')} | {r['综合分']:.0f} | "
+            f"{r.get('信号','')} | {r.get('现价','')} |")
+    lines.append("")
+    lines.append("> ⚠️ 模型信号仅供研究，非投资建议。可到网页端「🔍 个股详情」查看回测与风控。")
+    return "\n".join(lines)
+
+
+def push_per_user(dry: bool) -> None:
+    """遍历所有注册用户, 给设置了微信 SendKey + 自选股的人推送其个人策略播报。"""
+    try:
+        users = userstore.list_users()
+    except Exception as e:
+        print(f"⚠️ 读取用户列表失败, 跳过每用户推送: {e}")
+        return
+    targets = [u for u in users
+               if (u.get("sendkey") or "").strip() and (u.get("watchlist_text") or "").strip()]
+    if not targets:
+        print("（无已配置微信+自选股的用户, 跳过每用户推送）")
+        return
+    print(f"\n=== 每用户自选股推送: {len(targets)} 位用户 ===")
+    for u in targets:
+        email = u.get("email", "?")
+        wl = _parse_watchlist(u.get("watchlist_text", ""))
+        if not wl:
+            continue
+        try:
+            res = engine.analyze(wl, period="1y", use_news=False, use_earnings=False)
+        except Exception as e:
+            print(f"  ⚠️ {email} 分析失败: {e}")
+            continue
+        table = res.get("table")
+        regime = (res.get("regime", {}) or {}).get("label", "")
+        md = build_user_report(email, table, regime, res.get("asof", ""))
+        title = f"📈 你的自选股策略 {res.get('asof','')[:10]}"
+        if dry:
+            print(f"\n----- {email} (dry-run 预览) -----")
+            print(title)
+            print(md)
+        else:
+            r = notify.send_wechat(title, md, key=u["sendkey"].strip())
+            print(f"  → {email}: {r}")
+
+
 # ---------------------------------------------------------------- 主流程
 def main() -> int:
     dry = "--dry-run" in sys.argv
@@ -178,6 +267,12 @@ def main() -> int:
     else:
         r = notify.send_wechat(title, md)
         print(r)
+
+    # 每个注册用户: 按各自自选股 + 微信 SendKey 单独推送
+    try:
+        push_per_user(dry)
+    except Exception as e:
+        print(f"⚠️ 每用户推送整体异常: {e}")
 
     print(f"[{stamp}] 完成。")
     return 0

@@ -6,3 +6,4 @@ streamlit>=1.30
 matplotlib>=3.7
 vaderSentiment>=3.3
 akshare>=1.16
+requests>=2.31
