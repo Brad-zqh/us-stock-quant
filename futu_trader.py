@@ -36,11 +36,13 @@ from __future__ import annotations
 import os
 import sys
 import math
+import time
 import argparse
 import datetime as dt
 
 import engine
-import paper   # 复用决策阈值与取价工具, 保证与模拟账户逻辑一致
+import paper       # 复用决策阈值与取价工具, 保证与模拟账户逻辑一致
+import orderstore  # 手机端半自动确认的"信箱" (Supabase / 本地 JSON)
 
 # Windows 控制台默认 gbk 打不出 emoji/中文, 统一 UTF-8
 try:
@@ -265,10 +267,93 @@ def _confirm(prompt: str) -> bool:
         return False
 
 
+# ---------------------------------------------------------------- 手机确认相关
+def user_email() -> str:
+    """本机机器人代表哪个用户往信箱写单。优先 FUTU_USER_EMAIL, 否则管理员邮箱, 再否则本地占位。"""
+    e = os.getenv("FUTU_USER_EMAIL", "").strip().lower()
+    if e:
+        return e
+    try:
+        import userstore
+        admins = sorted(userstore.admin_emails())
+        if admins:
+            return admins[0]
+    except Exception:
+        pass
+    return "local@futu"
+
+
+def _execute_order(broker, order: dict, mode: str) -> str:
+    """真正下单 (paper/live); dry 模式无 broker, 仅演示。"""
+    if broker is None:
+        return "🧪 演示(未真正下单)"
+    return broker.place(order)
+
+
+def phone_confirm_flow(orders: list[dict], broker, mode: str, env_label: str,
+                       poll_secs: int = 10, timeout_min: int = 30) -> int:
+    """把拟下单推到信箱, 等手机端确认, 再执行被批准的单。"""
+    email = user_email()
+    if not orderstore.using_supabase():
+        _log("\n⚠️ 未配置 Supabase, 手机端无法远程确认。已写入本地 orders.json 仅供本机测试。")
+    batch = orderstore.create_orders(email, orders, env=mode)
+    _log(f"\n📲 已把 {len(orders)} 笔拟下单推送到「待确认信箱」(账户 {email}, 批次 {batch})。")
+    _log("   请打开手机 App →「📱 待确认」标签, 逐笔或一键 确认/拒绝。")
+    _log(f"   本机将每 {poll_secs}s 轮询一次, 最长等待 {timeout_min} 分钟…")
+
+    done_ids: set[str] = set()
+    deadline = time.time() + timeout_min * 60
+    while time.time() < deadline:
+        rows = orderstore.get_batch(batch)
+        pending = [r for r in rows if r.get("status") == orderstore.STATUS_PENDING]
+        approved = [r for r in rows
+                    if r.get("status") == orderstore.STATUS_APPROVED and r["id"] not in done_ids]
+
+        for r in approved:
+            desc = f"{r['side']} {r['qty']}股 {r['ticker']} @ ${r['price']}"
+            res = _execute_order(broker, r, mode)
+            ok = "❌" not in res
+            orderstore.set_status(
+                r["id"], orderstore.STATUS_DONE if ok else orderstore.STATUS_FAILED, res)
+            done_ids.add(r["id"])
+            _log(f"  ✅确认→执行: {desc} … {res}")
+
+        if not pending and not approved:
+            # 全部离开 pending/approved: 结束
+            rejected = [r for r in rows if r.get("status") == orderstore.STATUS_REJECTED]
+            _log(f"\n完成。执行 {len(done_ids)} 笔, 拒绝 {len(rejected)} 笔。")
+            return 0
+        time.sleep(poll_secs)
+
+    _log(f"\n⏰ 等待超时({timeout_min}分钟)。未确认的单已留在信箱, 可稍后在手机处理或重跑。")
+    return 0
+
+
+def local_confirm_flow(orders: list[dict], broker, mode: str, auto: bool, env_label: str) -> int:
+    """无手机确认时的本机流程: 命令行逐笔 y/n (dry 模式仅打印)。"""
+    if broker is None:   # dry-run 无 push: 仅演示
+        _log("\n(dry-run: 仅演示, 未连接富途、未下任何单)")
+        return 0
+    force_confirm = (mode == "live") or (not auto)
+    if force_confirm and not auto:
+        if not _confirm(f"\n确认在【{env_label}】执行以上 {len(orders)} 笔? 逐笔确认。"):
+            _log("已取消, 未下单。")
+            return 0
+    for o in orders:
+        desc = f"{o['side']} {o['qty']}股 {o['ticker']} @ ${o['price']}"
+        if mode == "live" or (force_confirm and not auto):
+            if not _confirm(f"→ {desc}?"):
+                _log(f"  跳过 {desc}")
+                continue
+        _log(f"  {desc} … {broker.place(o)}")
+    _log("\n完成。可在富途牛牛 App / 客户端查看订单与持仓。")
+    return 0
+
+
 # ---------------------------------------------------------------- 主流程
-def run(mode: str, auto: bool) -> int:
+def run(mode: str, auto: bool, push: bool = False) -> int:
     stamp = dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    _log(f"[{stamp}] 富途交易机器人启动 (mode={mode}, 自动={auto})")
+    _log(f"[{stamp}] 富途交易机器人启动 (mode={mode}, 自动={auto}, 手机确认={push})")
 
     wl = get_watchlist()
     _log(f"美股池: {', '.join(wl)}")
@@ -282,59 +367,44 @@ def run(mode: str, auto: bool) -> int:
     env_label = {"dry": "仅演算·未下单", "paper": "富途模拟盘 SIMULATE",
                  "live": "富途真实盘 REAL"}[mode]
 
-    if mode == "dry":
-        cash = float(os.getenv("FUTU_START_CASH", DEFAULT_START_CASH))
-        orders = build_orders(detail, cash, positions={})
-        print_orders(orders, cash, cash, env_label)
-        _log("\n(dry-run: 仅演示, 未连接富途、未下任何单)")
-        return 0
-
-    # ---- 需要连富途 ----
-    if mode == "live" and os.getenv("FUTU_ALLOW_LIVE") != "1":
-        _log("⛔ 实盘被禁用。真金下单需设环境变量 FUTU_ALLOW_LIVE=1 并了解风险后重试。")
-        return 2
+    broker = None
     try:
-        broker = FutuBroker(mode)
-    except ImportError:
-        _log("❌ 未安装 futu-api。请先 `pip install futu-api` 并启动 FutuOpenD 网关。")
-        return 3
-    except Exception as e:
-        _log(f"❌ 连接 FutuOpenD 失败: {e}\n请确认 FutuOpenD 已启动并登录 (默认 127.0.0.1:11111)。")
-        return 3
+        if mode in ("paper", "live"):
+            if mode == "live" and os.getenv("FUTU_ALLOW_LIVE") != "1":
+                _log("⛔ 实盘被禁用。真金下单需设环境变量 FUTU_ALLOW_LIVE=1 并了解风险后重试。")
+                return 2
+            try:
+                broker = FutuBroker(mode)
+            except ImportError:
+                _log("❌ 未安装 futu-api。请先 `pip install futu-api` 并启动 FutuOpenD 网关。")
+                return 3
+            except Exception as e:
+                _log(f"❌ 连接 FutuOpenD 失败: {e}\n"
+                     f"请确认 FutuOpenD 已启动并登录 (默认 127.0.0.1:11111)。")
+                return 3
+            broker.unlock_if_needed()
+            cash = broker.cash()
+            positions = broker.positions()
+            _log(f"已连接富途。现金 ${cash:,.0f}, 当前持仓 {len(positions)} 只: "
+                 f"{', '.join(positions) or '无'}")
+        else:  # dry
+            cash = float(os.getenv("FUTU_START_CASH", DEFAULT_START_CASH))
+            positions = {}
 
-    try:
-        broker.unlock_if_needed()
-        cash = broker.cash()
-        positions = broker.positions()
-        _log(f"已连接富途。现金 ${cash:,.0f}, 当前持仓 {len(positions)} 只: "
-             f"{', '.join(positions) or '无'}")
         orders = build_orders(detail, cash, positions)
         total = cash + sum(
-            (price_of(detail, t) or positions[t].get('price') or 0) * positions[t]['shares']
+            (price_of(detail, t) or (positions[t].get('price') or 0)) * positions[t]['shares']
             for t in positions)
         print_orders(orders, cash, total, env_label)
         if not orders:
             return 0
 
-        # 实盘强制逐笔确认; 模拟盘 auto 时可跳过
-        force_confirm = (mode == "live") or (not auto)
-        if force_confirm and not auto:
-            if not _confirm(f"\n确认在【{env_label}】执行以上 {len(orders)} 笔? 逐笔确认。"):
-                _log("已取消, 未下单。")
-                return 0
-
-        for o in orders:
-            desc = f"{o['side']} {o['qty']}股 {o['ticker']} @ ${o['price']}"
-            if mode == "live" or (force_confirm and not auto):
-                if not _confirm(f"→ {desc}?"):
-                    _log(f"  跳过 {desc}")
-                    continue
-            _log(f"  {desc} … {broker.place(o)}")
-
-        _log("\n完成。可在富途牛牛 App / 客户端查看订单与持仓。")
-        return 0
+        if push:
+            return phone_confirm_flow(orders, broker, mode, env_label)
+        return local_confirm_flow(orders, broker, mode, auto, env_label)
     finally:
-        broker.close()
+        if broker is not None:
+            broker.close()
 
 
 def main() -> int:
@@ -344,6 +414,8 @@ def main() -> int:
     g.add_argument("--paper", action="store_true", help="富途模拟盘下单 (假钱)")
     g.add_argument("--live", action="store_true", help="富途真实盘下单 (需 FUTU_ALLOW_LIVE=1)")
     ap.add_argument("--yes", action="store_true", help="不逐笔确认 (全自动, 仅模拟盘)")
+    ap.add_argument("--push", action="store_true",
+                    help="手机确认模式: 拟下单推到信箱, 手机 App 确认后本机执行 (需 Supabase)")
     args = ap.parse_args()
 
     if args.paper:
@@ -354,7 +426,7 @@ def main() -> int:
         mode = "dry"
 
     auto = args.yes and mode == "paper"   # 实盘不允许全自动
-    return run(mode, auto)
+    return run(mode, auto, push=args.push)
 
 
 if __name__ == "__main__":

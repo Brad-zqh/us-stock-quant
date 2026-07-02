@@ -1,5 +1,5 @@
 {
-  "version": "1.0.7",
-  "notes": "各端新增右下角「⟳ 更新」按钮(检查新版/强制刷新/下载安装包); 多用户登录系统(账号密码+邀请码, 需管理员配置后开启); 每人自选股/邮箱/微信推送 + 管理员用户后台。",
+  "version": "1.0.8",
+  "notes": "新增手机端「📱 待确认」交易确认(配合电脑富途机器人 --push 半自动下单); 富途美股交易机器人; Supabase 打通多用户+手机确认信箱。",
   "downloadUrl": "https://brad-zqh.github.io/us-stock-quant/download.html"
 }
