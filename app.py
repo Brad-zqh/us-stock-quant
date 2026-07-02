@@ -17,6 +17,7 @@ import engine
 import notify
 import universe
 import ashare
+import resolve
 
 st.set_page_config(page_title="美股量化选股看板", layout="wide", page_icon="📈")
 
@@ -72,11 +73,23 @@ def analyze_single(code: str, name: str, period: str, use_news: bool, use_fund: 
         return {"__error__": str(e)}
 
 
+@st.cache_data(ttl=3600, show_spinner=False)
+def search_us_cached(q: str):
+    return resolve.search_us(q)
+
+
+@st.cache_data(ttl=3600, show_spinner="🔎 匹配A股名称中…")
+def search_a_cached(q: str):
+    return resolve.search_ashare(q)
+
+
 if refresh:
     load.clear()
     load_screen.clear()
     ashare_screen_cached.clear()
     analyze_single.clear()
+    search_us_cached.clear()
+    search_a_cached.clear()
 
 res = load(watchlist, period, use_news, use_fund)
 table, detail = res["table"], res["detail"]
@@ -307,11 +320,11 @@ def render_detail(code: str, info: dict, currency: str = "$", name: str = ""):
 
 
 with tab2:
-    st.markdown("#### 🔍 个股详情 — 搜索任意美股 / A股, 或从自选股选择")
+    st.markdown("#### 🔍 个股详情 — 输入代码或名称 (美股英文 / A股中文), 或从自选股选择")
     sc1, sc2, sc3 = st.columns(3)
-    us_q = sc1.text_input("🇺🇸 美股代码搜索", placeholder="如 NVDA · AAPL · TSLA",
-                          key="us_query").strip().upper()
-    a_q = sc2.text_input("🇨🇳 A股代码搜索", placeholder="如 600519 · 000858 · 300750",
+    us_q = sc1.text_input("🇺🇸 美股 代码/名称", placeholder="如 NVDA 或 apple / nvidia",
+                          key="us_query").strip()
+    a_q = sc2.text_input("🇨🇳 A股 代码/名称", placeholder="如 600519 或 茅台 / 比亚迪",
                          key="a_query").strip()
     watch_pick = sc3.selectbox(
         "📋 或从自选股选择", options=[""] + list(detail.keys()),
@@ -319,25 +332,36 @@ with tab2:
     a_news_flag = sc2.checkbox("A股中文新闻情绪 (akshare, 可能较慢)", value=False,
                                key="a_news_detail")
 
-    rendered = False
-    # 优先级: 美股搜索 > A股搜索 > 自选股 > 默认第一只
+    # 解析目标: (代码, 名称, 货币符号, 是否用新闻)
+    target = None
     if us_q:
-        with st.spinner(f"🔎 分析美股 {us_q} 中…"):
-            info = analyze_single(us_q, us_q, period, use_news, use_fund)
-        if not info or info.get("__error__") or "df" not in info:
-            st.error(f"未能获取 {us_q} 的数据。请确认美股代码正确 (如 NVDA、AAPL)。")
+        cands = search_us_cached(us_q)
+        if not cands:
+            sc1.warning("未找到匹配的美股，可直接输入代码 (如 NVDA)。")
         else:
-            render_detail(us_q, info, currency="$")
-            rendered = True
+            labels = [f"{s} · {n}" + (f" ({e})" if e else "") for s, n, e, qt in cands]
+            i = sc1.selectbox("匹配结果", range(len(cands)),
+                              format_func=lambda i: labels[i], key="us_pick")
+            target = (cands[i][0], cands[i][1], "$", use_news)
     elif a_q:
-        acode = ashare.normalize_code(a_q)
-        aname = ashare.A_NAME.get(acode, "")
-        with st.spinner(f"🔎 分析A股 {acode} 中…"):
-            info = analyze_single(acode, aname or acode, period, a_news_flag, use_fund)
-        if not info or info.get("__error__") or "df" not in info:
-            st.error(f"未能获取 {acode} 的数据。请确认A股代码正确 (6位数字, 如 600519、000858)。")
+        cands = search_a_cached(a_q)
+        if not cands:
+            sc2.warning("未找到匹配的A股，可直接输入6位代码 (如 600519)。")
         else:
-            render_detail(acode, info, currency="¥", name=aname)
+            labels = [f"{c} · {n}" for c, n in cands]
+            i = sc2.selectbox("匹配结果", range(len(cands)),
+                              format_func=lambda i: labels[i], key="a_pick")
+            target = (cands[i][0], cands[i][1], "¥", a_news_flag)
+
+    rendered = False
+    # 优先级: 搜索(美股>A股) > 自选股 > 默认第一只
+    if target:
+        code, name, cur, un = target
+        info = analyze_single(code, name, period, un, use_fund)
+        if not info or info.get("__error__") or "df" not in info:
+            st.error(f"未能获取 {code} 的行情数据 (可能未上市/退市/代码有误)。")
+        else:
+            render_detail(code, info, currency=cur, name=name)
             rendered = True
     elif watch_pick:
         render_detail(watch_pick, detail[watch_pick], currency="$",
@@ -346,7 +370,8 @@ with tab2:
 
     if not rendered and detail:
         first = list(detail.keys())[0]
-        st.caption("👆 在上方搜索框输入美股或A股代码, 或从自选股下拉选择。下方默认显示自选股首只:")
+        st.caption("👆 在上方输入美股/A股的代码或名称 (支持模糊)，或从自选股下拉选择。"
+                   "下方默认显示自选股首只:")
         render_detail(first, detail[first], currency="$", name=watchlist.get(first, ""))
 
 # ================================================================ TAB 3 选股池
