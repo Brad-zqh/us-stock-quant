@@ -15,6 +15,7 @@
 
 from __future__ import annotations
 import datetime as dt
+import os
 import numpy as np
 import pandas as pd
 import yfinance as yf
@@ -264,6 +265,29 @@ def score_factors(d: pd.DataFrame, bench: pd.Series | None = None) -> dict:
 WEIGHTS = {"基本面": 0.14, "趋势": 0.13, "分析师": 0.11, "动量": 0.10,
            "盈利质量": 0.10, "资金流": 0.09, "筹码面": 0.08, "风险": 0.08,
            "相对大盘": 0.07, "新闻情绪": 0.06, "强弱": 0.04}
+
+# 若存在 calibrated_weights.json (由 calibrate.py 用历史 IC 校准生成), 自动加载覆盖。
+# 删除该文件即可回退到上面的默认权重。保持温和、可解释, 不引入黑盒。
+def _load_calibrated_weights():
+    try:
+        import json
+        path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                            "calibrated_weights.json")
+        if os.path.exists(path):
+            with open(path, encoding="utf-8") as fp:
+                data = json.load(fp)
+            w = data.get("weights") if isinstance(data, dict) else None
+            if isinstance(w, dict) and w:
+                # 只接受已知因子, 且做归一化, 防止脏数据
+                clean = {k: float(v) for k, v in w.items() if k in WEIGHTS}
+                tot = sum(clean.values())
+                if clean and tot > 0:
+                    WEIGHTS.update({k: round(v / tot, 4) for k, v in clean.items()})
+    except Exception:
+        pass
+
+
+_load_calibrated_weights()
 
 # 若关闭基本面/分析师/资金流, 用这套纯技术权重 (自动归一化)
 def _effective_weights(factors: dict) -> dict:
