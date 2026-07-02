@@ -36,6 +36,10 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Add macOS universal targets
+        if: matrix.name == 'macOS'
+        run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
+
       - name: Cache Rust
         uses: Swatinem/rust-cache@v2
         with:
@@ -47,8 +51,13 @@ jobs:
       - name: Generate app icons (from 512 源图)
         run: npx @tauri-apps/cli@2 icon ../web/icons/icon-512.png
 
-      - name: Build Tauri bundles
+      - name: Build Tauri bundles (Windows)
+        if: matrix.name == 'Windows'
         run: npm run build
+
+      - name: Build Tauri bundles (macOS universal · Intel+Apple 通吃)
+        if: matrix.name == 'macOS'
+        run: npx @tauri-apps/cli@2 build --target universal-apple-darwin
 
       - name: Upload installers
         uses: actions/upload-artifact@v4
@@ -56,10 +65,10 @@ jobs:
           name: desktop-${{ matrix.name }}
           if-no-files-found: warn
           path: |
-            app-shell/tauri/src-tauri/target/release/bundle/**/*.dmg
-            app-shell/tauri/src-tauri/target/release/bundle/**/*.app
-            app-shell/tauri/src-tauri/target/release/bundle/**/*.msi
-            app-shell/tauri/src-tauri/target/release/bundle/**/*.exe
+            app-shell/tauri/src-tauri/target/**/release/bundle/**/*.dmg
+            app-shell/tauri/src-tauri/target/**/release/bundle/**/*.app
+            app-shell/tauri/src-tauri/target/**/release/bundle/**/*.msi
+            app-shell/tauri/src-tauri/target/**/release/bundle/**/*.exe
 
       - name: Stage Windows installer (稳定文件名)
         if: matrix.name == 'Windows' && startsWith(github.ref, 'refs/tags/')
@@ -71,7 +80,7 @@ jobs:
       - name: Stage macOS dmg (稳定文件名)
         if: matrix.name == 'macOS' && startsWith(github.ref, 'refs/tags/')
         run: |
-          dmg=$(find src-tauri/target/release/bundle/dmg -name '*.dmg' | head -n1)
+          dmg=$(find src-tauri/target -name '*.dmg' | head -n1)
           cp "$dmg" "$RUNNER_TEMP/StockQuant-macOS.dmg"
 
       - name: Attach to Release

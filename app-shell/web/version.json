@@ -1,5 +1,5 @@
 {
-  "version": "1.0.4",
-  "notes": "新增搜索个股『AI 研究员点评』(大模型)、AI 交易员每日自动运行+微信推送；沿用 AI 交易员模拟账户、组合模拟盘、白话策略解读、默认深色主题。",
+  "version": "1.0.5",
+  "notes": "macOS 安装包改为通用二进制(Intel+Apple 芯片通吃)；下载页 mac 解锁说明更清晰。含 AI 研究员个股点评、AI 交易员每日自动运行+微信推送、模拟盘账户。",
   "downloadUrl": "https://brad-zqh.github.io/us-stock-quant/download.html"
 }
