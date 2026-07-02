@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>下载 · 股票量化分析</title>
+  <meta name="theme-color" content="#0e1117" />
+  <link rel="icon" type="image/png" href="icons/icon-192.png" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <style>
+    :root { --bg:#0e1117; --card:#161b22; --line:#232a33; --fg:#fafafa; --sub:#9aa0aa; --red:#ef5350; }
+    * { box-sizing: border-box; }
+    html, body { margin:0; padding:0; background:var(--bg); color:var(--fg);
+      font-family:-apple-system,"PingFang SC","Microsoft YaHei",Segoe UI,Roboto,sans-serif; }
+    .wrap { max-width: 760px; margin: 0 auto; padding: 40px 20px 60px; }
+    header { text-align:center; margin-bottom: 28px; }
+    header img { width:76px; height:76px; border-radius:18px; }
+    h1 { font-size: 24px; margin:14px 0 6px; }
+    .sub { color:var(--sub); font-size:14px; line-height:1.6; }
+    .grid { display:grid; grid-template-columns:1fr; gap:14px; margin-top: 26px; }
+    @media(min-width:620px){ .grid{ grid-template-columns:1fr 1fr; } }
+    .card { background:var(--card); border:1px solid var(--line); border-radius:14px;
+      padding:18px 18px 20px; display:flex; flex-direction:column; }
+    .card h3 { margin:0 0 4px; font-size:17px; display:flex; align-items:center; gap:8px; }
+    .card p { margin:6px 0 14px; color:var(--sub); font-size:13px; line-height:1.55; flex:1; }
+    .btn { display:inline-block; text-align:center; text-decoration:none; font-weight:700;
+      font-size:15px; padding:11px 16px; border-radius:10px; background:var(--red); color:#fff; }
+    .btn.ghost { background:transparent; border:1px solid var(--line); color:var(--fg); font-weight:600; }
+    .btn + .btn { margin-top:8px; }
+    .full { grid-column:1/-1; }
+    .note { margin-top:26px; background:#12171d; border:1px solid var(--line);
+      border-radius:12px; padding:16px 18px; color:var(--sub); font-size:12.5px; line-height:1.7; }
+    .note b { color:var(--fg); }
+    code { background:#0b0e12; padding:1px 6px; border-radius:5px; color:#e6b800; font-size:12px; }
+    footer { text-align:center; color:var(--sub); font-size:12px; margin-top:30px; }
+    a.link { color:#58a6ff; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <img src="icons/icon-192.png" alt="logo" />
+      <h1>📈 股票量化分析 · 下载</h1>
+      <div class="sub">美股 / A股 多因子量化分析。选择你的设备，点击下载安装。<br />
+        安装包由 GitHub 自动构建，永远指向<b>最新版本</b>。</div>
+    </header>
+
+    <div class="grid">
+      <div class="card full">
+        <h3>🌐 网页版 / 免安装（推荐先用）</h3>
+        <p>无需下载，浏览器直接打开即用。手机上打开后点「分享 → 添加到主屏幕」即可像 App 一样全屏使用（iOS 走这条）。</p>
+        <a class="btn" href="./" >打开网页版 App</a>
+      </div>
+
+      <div class="card">
+        <h3>🪟 Windows</h3>
+        <p>NSIS 安装包（.exe）。首次运行若弹 SmartScreen，点「更多信息 → 仍要运行」。</p>
+        <a class="btn" href="https://github.com/Brad-zqh/us-stock-quant/releases/latest/download/StockQuant-Windows-Setup.exe">下载 Windows 安装包</a>
+      </div>
+
+      <div class="card">
+        <h3>🍎 macOS</h3>
+        <p>磁盘映像（.dmg）。未签名，首次打开请<b>右键 → 打开</b>绕过 Gatekeeper。</p>
+        <a class="btn" href="https://github.com/Brad-zqh/us-stock-quant/releases/latest/download/StockQuant-macOS.dmg">下载 macOS 安装包</a>
+      </div>
+
+      <div class="card">
+        <h3>🤖 Android</h3>
+        <p>调试版 APK。安装时允许「未知来源 / 安装此来源的应用」。</p>
+        <a class="btn" href="https://github.com/Brad-zqh/us-stock-quant/releases/latest/download/StockQuant-Android.apk">下载 Android APK</a>
+      </div>
+
+      <div class="card">
+        <h3>📱 iPhone / iPad</h3>
+        <p>iOS 需 Apple 开发者账号才能出安装包，暂用网页版：Safari 打开网页版 → 分享 → 添加到主屏幕。</p>
+        <a class="btn ghost" href="./">用 Safari 打开网页版</a>
+      </div>
+    </div>
+
+    <div class="note">
+      <b>提示</b>：这些安装包未做代码签名（个人项目），系统会提示"来源未知"，按上面各卡片的说明放行即可，程序本身只是把网页版<b>套壳</b>成桌面/手机 App。<br />
+      找不到下载？说明还没发布任何版本 —— 到仓库执行 <code>git tag v1.0.0 &amp;&amp; git push origin v1.0.0</code> 触发自动构建，几分钟后本页链接即可用。
+      也可直接看 <a class="link" href="https://github.com/Brad-zqh/us-stock-quant/releases/latest">最新 Release 页面</a>。
+    </div>
+
+    <footer>© 股票量化分析 · 仅供量化研究参考，不构成投资建议。</footer>
+  </div>
+</body>
+</html>

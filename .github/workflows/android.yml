@@ -7,7 +7,7 @@ on:
     tags: ["v*"]
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
@@ -52,3 +52,14 @@ jobs:
           name: android-apk-debug
           if-no-files-found: error
           path: app-shell/capacitor/android/app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Stage APK (稳定文件名)
+        if: startsWith(github.ref, 'refs/tags/')
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk "$RUNNER_TEMP/StockQuant-Android.apk"
+
+      - name: Attach to Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          fail_on_unmatched_files: false
+          files: ${{ runner.temp }}/StockQuant-Android.apk
