@@ -1,0 +1,9 @@
+{
+  "appId": "com.brad.stockquant",
+  "appName": "股票量化分析",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "https",
+    "iosScheme": "https"
+  }
+}

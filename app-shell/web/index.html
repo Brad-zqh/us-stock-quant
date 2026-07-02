@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no" />
+  <title>股票量化分析</title>
+  <meta name="theme-color" content="#0e1117" />
+  <!-- iOS 全屏 App 化 -->
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="量化分析" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <link rel="icon" type="image/png" href="icons/icon-192.png" />
+  <style>
+    html, body { margin: 0; padding: 0; height: 100%; background: #0e1117; overflow: hidden; }
+    #app { position: fixed; inset: 0; border: 0; width: 100%; height: 100%; }
+    #splash {
+      position: fixed; inset: 0; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; background: #0e1117;
+      color: #fafafa; font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+      z-index: 10; transition: opacity .4s ease; text-align: center; padding: 24px;
+    }
+    #splash img { width: 96px; height: 96px; border-radius: 22px; margin-bottom: 18px; }
+    #splash .t { font-size: 20px; font-weight: 700; }
+    #splash .s { font-size: 13px; color: #9aa0aa; margin-top: 8px; }
+    .spin { margin-top: 22px; width: 28px; height: 28px; border: 3px solid #333;
+            border-top-color: #ef5350; border-radius: 50%; animation: r 1s linear infinite; }
+    @keyframes r { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div id="splash">
+    <img src="icons/icon-192.png" alt="logo" />
+    <div class="t">📈 股票量化分析</div>
+    <div class="s">美股 / A股 多因子量化 · 首次唤醒云端约需 20–40 秒</div>
+    <div class="spin"></div>
+  </div>
+  <iframe id="app" src="" allow="clipboard-read; clipboard-write" referrerpolicy="no-referrer"></iframe>
+
+  <script>
+    // 你的 Streamlit 云端地址。embed=true 隐藏顶部菜单/页脚, 更像原生 App。
+    var STREAMLIT_URL = "https://us-stock-quant-txpjva2xepffh9h2peiaup.streamlit.app/?embed=true";
+    var frame = document.getElementById("app");
+    var splash = document.getElementById("splash");
+    frame.src = STREAMLIT_URL;
+    frame.addEventListener("load", function () {
+      setTimeout(function () {
+        splash.style.opacity = "0";
+        setTimeout(function () { splash.style.display = "none"; }, 400);
+      }, 800);
+    });
+    // 兜底: 无论如何 45 秒后移除启动页
+    setTimeout(function () { splash.style.display = "none"; }, 45000);
+
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", function () {
+        navigator.serviceWorker.register("service-worker.js").catch(function () {});
+      });
+    }
+  </script>
+</body>
+</html>

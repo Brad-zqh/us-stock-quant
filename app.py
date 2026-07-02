@@ -61,10 +61,22 @@ def ashare_screen_cached(period: str, use_fund: bool, top: int, use_news: bool):
                          top=top, use_news=use_news)
 
 
+@st.cache_data(ttl=900, show_spinner="🔎 分析该股票中…")
+def analyze_single(code: str, name: str, period: str, use_news: bool, use_fund: bool):
+    """按单只股票代码跑完整分析, 返回 detail 字典 (供搜索个股详情用)。"""
+    try:
+        res = engine.analyze({code: name}, period=period, use_news=use_news,
+                             use_fundamentals=use_fund, use_earnings=True)
+        return res["detail"].get(code)
+    except Exception as e:
+        return {"__error__": str(e)}
+
+
 if refresh:
     load.clear()
     load_screen.clear()
     ashare_screen_cached.clear()
+    analyze_single.clear()
 
 res = load(watchlist, period, use_news, use_fund)
 table, detail = res["table"], res["detail"]
@@ -163,134 +175,179 @@ with tab1:
             "止损/目标价基于 ATR(2.5×/4×), 富途下单时可直接参考。")
 
 # ================================================================ TAB 2 详情
-with tab2:
-    pick = st.selectbox("选择股票", options=list(detail.keys()),
-                        format_func=lambda t: f"{t}  {watchlist.get(t, '')}")
-    if pick:
-        info = detail[pick]
-        d, plan, factors = info["df"], info["plan"], info["factors"]
+def render_detail(code: str, info: dict, currency: str = "$", name: str = ""):
+    """渲染单只股票的完整个股详情面板 (自选股选择 与 搜索 共用)。"""
+    cur = currency
+    d, plan, factors = info["df"], info["plan"], info["factors"]
 
-        c1, c2, c3, c4, c5 = st.columns(5)
-        c1.metric("综合分", info["score"])
-        c2.metric("信号", info["action"])
-        c3.metric("现价", f"${plan['现价']}")
-        c4.metric("止损价", f"${plan['止损价']}", f"{plan['止损%']}%")
-        c5.metric("目标价", f"${plan['目标价']}", f"{plan['目标%']}%")
+    title = f"{code}" + (f"  {name}" if name else "")
+    st.markdown(f"#### {title}")
 
-        earn = info.get("earnings")
-        if earn:
-            if earn["soon"]:
-                st.error(f"⚠️ **财报临近**: {earn['days']} 天后 ({earn['date']}) 发财报 — "
-                         "财报前后波动剧烈, 谨慎追高, 可等财报落地再决策。")
-            else:
-                st.caption(f"📅 下次财报: {earn['date']} (还有 {earn['days']} 天)")
+    c1, c2, c3, c4, c5 = st.columns(5)
+    c1.metric("综合分", info["score"])
+    c2.metric("信号", info["action"])
+    c3.metric("现价", f"{cur}{plan['现价']}")
+    c4.metric("止损价", f"{cur}{plan['止损价']}", f"{plan['止损%']}%")
+    c5.metric("目标价", f"{cur}{plan['目标价']}", f"{plan['目标%']}%")
 
-        # 基本面 / 分析师 / 资金流 明细
-        pd_detail = info.get("plus_detail", {})
-        if pd_detail:
-            items = [("基本面", "📊"), ("盈利质量", "🚀"), ("分析师", "🎯"),
-                     ("筹码面", "🧩"), ("资金流", "💰")]
-            ccols = st.columns(len(items))
-            for col, (key, icon) in zip(ccols, items):
-                dd = pd_detail.get(key, {})
-                if dd:
-                    txt = "　".join(f"{k} **{v}**" for k, v in dd.items())
-                    col.markdown(f"**{icon} {key}** ({info['factors'].get(key,'-')})<br>"
-                                 f"<span style='font-size:0.8em'>{txt}</span>",
-                                 unsafe_allow_html=True)
-
-        # 原始技术指标读数 (透明化)
-        last = d.iloc[-1]
-        def _v(col, f="{:.1f}"):
-            x = last.get(col)
-            return f.format(x) if x is not None and pd.notna(x) else "—"
-        st.caption(
-            f"📐 技术指标　RSI {_v('RSI')}　ADX {_v('ADX')} (>25趋势强)　"
-            f"KDJ-J {_v('J')}　MFI {_v('MFI')} (>80超买/<20超卖)　"
-            f"CMF {_v('CMF','{:.3f}')}　布林%B {_v('BB_pctB','{:.2f}')}　"
-            f"年化波动 {_v('vol_ann','{:.0%}')}")
-
-        left, right = st.columns([3, 2])
-
-        # ---- 左: K线 + 均线 + MACD + RSI
-        with left:
-            dd = d.tail(180)
-            fig = make_subplots(rows=3, cols=1, shared_xaxes=True,
-                                row_heights=[0.6, 0.2, 0.2], vertical_spacing=0.03,
-                                subplot_titles=("K线 + 均线", "MACD", "RSI"))
-            fig.add_trace(go.Candlestick(
-                x=dd.index, open=dd["Open"], high=dd["High"], low=dd["Low"],
-                close=dd["Close"], name="K线",
-                increasing_line_color="#ef5350", decreasing_line_color="#26a69a"), row=1, col=1)
-            for ma, col in [("SMA20", "#f4d35e"), ("SMA50", "#ee964b"), ("SMA200", "#9b5de5")]:
-                fig.add_trace(go.Scatter(x=dd.index, y=dd[ma], name=ma,
-                                         line=dict(width=1, color=col)), row=1, col=1)
-            # 止损/目标参考线
-            fig.add_hline(y=plan["止损价"], line=dict(color="#16a34a", dash="dot"), row=1, col=1)
-            fig.add_hline(y=plan["目标价"], line=dict(color="#dc2626", dash="dot"), row=1, col=1)
-
-            fig.add_trace(go.Bar(x=dd.index, y=dd["MACD_hist"], name="MACD柱",
-                                 marker_color=np.where(dd["MACD_hist"] >= 0, "#ef5350", "#26a69a")), row=2, col=1)
-            fig.add_trace(go.Scatter(x=dd.index, y=dd["MACD"], name="MACD", line=dict(color="#42a5f5", width=1)), row=2, col=1)
-            fig.add_trace(go.Scatter(x=dd.index, y=dd["MACD_signal"], name="Signal", line=dict(color="#ffa726", width=1)), row=2, col=1)
-
-            fig.add_trace(go.Scatter(x=dd.index, y=dd["RSI"], name="RSI", line=dict(color="#ab47bc", width=1.2)), row=3, col=1)
-            fig.add_hline(y=70, line=dict(color="#ef5350", dash="dash"), row=3, col=1)
-            fig.add_hline(y=30, line=dict(color="#26a69a", dash="dash"), row=3, col=1)
-
-            fig.update_layout(height=620, template="plotly_dark", showlegend=True,
-                              xaxis_rangeslider_visible=False, margin=dict(t=40, b=10),
-                              legend=dict(orientation="h", y=1.04))
-            st.plotly_chart(fig, use_container_width=True)
-
-        # ---- 右: 因子雷达 + 回测
-        with right:
-            cats = list(factors.keys())
-            radar = go.Figure()
-            radar.add_trace(go.Scatterpolar(
-                r=[factors[c] for c in cats] + [factors[cats[0]]],
-                theta=cats + [cats[0]], fill="toself",
-                line_color=info["color"], name="因子分"))
-            radar.update_layout(template="plotly_dark", height=300,
-                                polar=dict(radialaxis=dict(range=[0, 100])),
-                                margin=dict(t=30, b=10), title="因子雷达 (越外越看多)")
-            st.plotly_chart(radar, use_container_width=True)
-
-            bt = info["backtest"]
-            figb = go.Figure()
-            figb.add_trace(go.Scatter(x=bt.index, y=bt["策略"], name="量化策略", line=dict(color="#dc2626", width=2)))
-            figb.add_trace(go.Scatter(x=bt.index, y=bt["买入持有"], name="买入持有", line=dict(color="#888", width=1.5, dash="dot")))
-            figb.update_layout(template="plotly_dark", height=290, title="策略回测净值",
-                               margin=dict(t=30, b=10), legend=dict(orientation="h", y=1.1))
-            st.plotly_chart(figb, use_container_width=True)
-
-            s, b = info["stats"], info["bh_stats"]
-            if s and b:
-                st.markdown("**回测对比**")
-                st.dataframe(pd.DataFrame({"量化策略": s, "买入持有": b}).T,
-                             use_container_width=True)
-
-        # ---- 新闻情绪面板
-        st.markdown(f"### 📰 最新新闻情绪　(情绪因子: {info['factors'].get('新闻情绪', 50)})")
-        news_items = info.get("news", [])
-        if not news_items:
-            st.caption("暂无新闻数据 (或已关闭新闻因子)。")
+    earn = info.get("earnings")
+    if earn:
+        if earn["soon"]:
+            st.error(f"⚠️ **财报临近**: {earn['days']} 天后 ({earn['date']}) 发财报 — "
+                     "财报前后波动剧烈, 谨慎追高, 可等财报落地再决策。")
         else:
-            for it in news_items:
-                sent = it["sentiment"]
-                tag = "🟢 利好" if sent > 0.1 else ("🔴 利空" if sent < -0.1 else "⚪ 中性")
-                when = it["when"].strftime("%Y-%m-%d") if it["when"] else "—"
-                src = f" · {it['source']}" if it.get("source") else ""
-                link = it.get("link") or ""
-                title = f"[{it['title']}]({link})" if link else it["title"]
-                st.markdown(f"{tag} `{sent:+.2f}`　**{when}**{src}　{title}")
+            st.caption(f"📅 下次财报: {earn['date']} (还有 {earn['days']} 天)")
 
-        if info.get("insufficient"):
-            st.warning(f"⚠️ {pick} 上市仅 {info['n_bars']} 个交易日, 技术指标(均线/MACD/RSI)"
-                       "样本不足, 综合分主要参考新闻情绪与短期价格, 仅供观察。")
+    # 基本面 / 分析师 / 资金流 明细
+    pd_detail = info.get("plus_detail", {})
+    if pd_detail:
+        items = [("基本面", "📊"), ("盈利质量", "🚀"), ("分析师", "🎯"),
+                 ("筹码面", "🧩"), ("资金流", "💰")]
+        ccols = st.columns(len(items))
+        for col, (key, icon) in zip(ccols, items):
+            dd = pd_detail.get(key, {})
+            if dd:
+                txt = "　".join(f"{k} **{v}**" for k, v in dd.items())
+                col.markdown(f"**{icon} {key}** ({info['factors'].get(key,'-')})<br>"
+                             f"<span style='font-size:0.8em'>{txt}</span>",
+                             unsafe_allow_html=True)
 
-        st.caption("⚠️ 本工具仅作量化研究参考, 不构成投资建议。实盘请结合基本面与风险承受能力, "
-                   "在富途牛牛自行决策下单。")
+    # 原始技术指标读数 (透明化)
+    last = d.iloc[-1]
+    def _v(col, f="{:.1f}"):
+        x = last.get(col)
+        return f.format(x) if x is not None and pd.notna(x) else "—"
+    st.caption(
+        f"📐 技术指标　RSI {_v('RSI')}　ADX {_v('ADX')} (>25趋势强)　"
+        f"KDJ-J {_v('J')}　MFI {_v('MFI')} (>80超买/<20超卖)　"
+        f"CMF {_v('CMF','{:.3f}')}　布林%B {_v('BB_pctB','{:.2f}')}　"
+        f"年化波动 {_v('vol_ann','{:.0%}')}")
+
+    left, right = st.columns([3, 2])
+
+    # ---- 左: K线 + 均线 + MACD + RSI
+    with left:
+        dd = d.tail(180)
+        fig = make_subplots(rows=3, cols=1, shared_xaxes=True,
+                            row_heights=[0.6, 0.2, 0.2], vertical_spacing=0.03,
+                            subplot_titles=("K线 + 均线", "MACD", "RSI"))
+        fig.add_trace(go.Candlestick(
+            x=dd.index, open=dd["Open"], high=dd["High"], low=dd["Low"],
+            close=dd["Close"], name="K线",
+            increasing_line_color="#ef5350", decreasing_line_color="#26a69a"), row=1, col=1)
+        for ma, col in [("SMA20", "#f4d35e"), ("SMA50", "#ee964b"), ("SMA200", "#9b5de5")]:
+            fig.add_trace(go.Scatter(x=dd.index, y=dd[ma], name=ma,
+                                     line=dict(width=1, color=col)), row=1, col=1)
+        # 止损/目标参考线
+        fig.add_hline(y=plan["止损价"], line=dict(color="#16a34a", dash="dot"), row=1, col=1)
+        fig.add_hline(y=plan["目标价"], line=dict(color="#dc2626", dash="dot"), row=1, col=1)
+
+        fig.add_trace(go.Bar(x=dd.index, y=dd["MACD_hist"], name="MACD柱",
+                             marker_color=np.where(dd["MACD_hist"] >= 0, "#ef5350", "#26a69a")), row=2, col=1)
+        fig.add_trace(go.Scatter(x=dd.index, y=dd["MACD"], name="MACD", line=dict(color="#42a5f5", width=1)), row=2, col=1)
+        fig.add_trace(go.Scatter(x=dd.index, y=dd["MACD_signal"], name="Signal", line=dict(color="#ffa726", width=1)), row=2, col=1)
+
+        fig.add_trace(go.Scatter(x=dd.index, y=dd["RSI"], name="RSI", line=dict(color="#ab47bc", width=1.2)), row=3, col=1)
+        fig.add_hline(y=70, line=dict(color="#ef5350", dash="dash"), row=3, col=1)
+        fig.add_hline(y=30, line=dict(color="#26a69a", dash="dash"), row=3, col=1)
+
+        fig.update_layout(height=620, template="plotly_dark", showlegend=True,
+                          xaxis_rangeslider_visible=False, margin=dict(t=40, b=10),
+                          legend=dict(orientation="h", y=1.04))
+        st.plotly_chart(fig, use_container_width=True)
+
+    # ---- 右: 因子雷达 + 回测
+    with right:
+        cats = list(factors.keys())
+        radar = go.Figure()
+        radar.add_trace(go.Scatterpolar(
+            r=[factors[c] for c in cats] + [factors[cats[0]]],
+            theta=cats + [cats[0]], fill="toself",
+            line_color=info["color"], name="因子分"))
+        radar.update_layout(template="plotly_dark", height=300,
+                            polar=dict(radialaxis=dict(range=[0, 100])),
+                            margin=dict(t=30, b=10), title="因子雷达 (越外越看多)")
+        st.plotly_chart(radar, use_container_width=True)
+
+        bt = info["backtest"]
+        figb = go.Figure()
+        figb.add_trace(go.Scatter(x=bt.index, y=bt["策略"], name="量化策略", line=dict(color="#dc2626", width=2)))
+        figb.add_trace(go.Scatter(x=bt.index, y=bt["买入持有"], name="买入持有", line=dict(color="#888", width=1.5, dash="dot")))
+        figb.update_layout(template="plotly_dark", height=290, title="策略回测净值",
+                           margin=dict(t=30, b=10), legend=dict(orientation="h", y=1.1))
+        st.plotly_chart(figb, use_container_width=True)
+
+        s, b = info["stats"], info["bh_stats"]
+        if s and b:
+            st.markdown("**回测对比**")
+            st.dataframe(pd.DataFrame({"量化策略": s, "买入持有": b}).T,
+                         use_container_width=True)
+
+    # ---- 新闻情绪面板
+    st.markdown(f"### 📰 最新新闻情绪　(情绪因子: {info['factors'].get('新闻情绪', 50)})")
+    news_items = info.get("news", [])
+    if not news_items:
+        st.caption("暂无新闻数据 (或已关闭新闻因子)。")
+    else:
+        for it in news_items:
+            sent = it["sentiment"]
+            tag = "🟢 利好" if sent > 0.1 else ("🔴 利空" if sent < -0.1 else "⚪ 中性")
+            when = it["when"].strftime("%Y-%m-%d") if it["when"] else "—"
+            src = f" · {it['source']}" if it.get("source") else ""
+            link = it.get("link") or ""
+            title = f"[{it['title']}]({link})" if link else it["title"]
+            st.markdown(f"{tag} `{sent:+.2f}`　**{when}**{src}　{title}")
+
+    if info.get("insufficient"):
+        st.warning(f"⚠️ {code} 上市仅 {info['n_bars']} 个交易日, 技术指标(均线/MACD/RSI)"
+                   "样本不足, 综合分主要参考新闻情绪与短期价格, 仅供观察。")
+
+    st.caption("⚠️ 本工具仅作量化研究参考, 不构成投资建议。实盘请结合基本面与风险承受能力, "
+               "在富途牛牛自行决策下单。")
+
+
+with tab2:
+    st.markdown("#### 🔍 个股详情 — 搜索任意美股 / A股, 或从自选股选择")
+    sc1, sc2, sc3 = st.columns(3)
+    us_q = sc1.text_input("🇺🇸 美股代码搜索", placeholder="如 NVDA · AAPL · TSLA",
+                          key="us_query").strip().upper()
+    a_q = sc2.text_input("🇨🇳 A股代码搜索", placeholder="如 600519 · 000858 · 300750",
+                         key="a_query").strip()
+    watch_pick = sc3.selectbox(
+        "📋 或从自选股选择", options=[""] + list(detail.keys()),
+        format_func=lambda t: "（选择自选股…）" if t == "" else f"{t}  {watchlist.get(t, '')}")
+    a_news_flag = sc2.checkbox("A股中文新闻情绪 (akshare, 可能较慢)", value=False,
+                               key="a_news_detail")
+
+    rendered = False
+    # 优先级: 美股搜索 > A股搜索 > 自选股 > 默认第一只
+    if us_q:
+        with st.spinner(f"🔎 分析美股 {us_q} 中…"):
+            info = analyze_single(us_q, us_q, period, use_news, use_fund)
+        if not info or info.get("__error__") or "df" not in info:
+            st.error(f"未能获取 {us_q} 的数据。请确认美股代码正确 (如 NVDA、AAPL)。")
+        else:
+            render_detail(us_q, info, currency="$")
+            rendered = True
+    elif a_q:
+        acode = ashare.normalize_code(a_q)
+        aname = ashare.A_NAME.get(acode, "")
+        with st.spinner(f"🔎 分析A股 {acode} 中…"):
+            info = analyze_single(acode, aname or acode, period, a_news_flag, use_fund)
+        if not info or info.get("__error__") or "df" not in info:
+            st.error(f"未能获取 {acode} 的数据。请确认A股代码正确 (6位数字, 如 600519、000858)。")
+        else:
+            render_detail(acode, info, currency="¥", name=aname)
+            rendered = True
+    elif watch_pick:
+        render_detail(watch_pick, detail[watch_pick], currency="$",
+                      name=watchlist.get(watch_pick, ""))
+        rendered = True
+
+    if not rendered and detail:
+        first = list(detail.keys())[0]
+        st.caption("👆 在上方搜索框输入美股或A股代码, 或从自选股下拉选择。下方默认显示自选股首只:")
+        render_detail(first, detail[first], currency="$", name=watchlist.get(first, ""))
 
 # ================================================================ TAB 3 选股池
 with tab3:

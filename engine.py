@@ -53,7 +53,6 @@ DEFAULT_WATCHLIST = {
     "SNDK": "闪迪 SanDisk",
     "MU":   "美光科技 Micron",
     "LITE": "Lumentum",
-    "SPCX": "SpaceX 太空探索",
     "NVDA": "英伟达 Nvidia",
     "AAPL": "苹果 Apple",
     "TSLA": "特斯拉 Tesla",

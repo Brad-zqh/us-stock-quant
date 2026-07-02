@@ -1,0 +1,21 @@
+{
+  "name": "stockquant-mobile",
+  "version": "1.0.0",
+  "private": true,
+  "description": "股票量化分析 —— iOS / Android 外壳 (Capacitor, 加载云端 Streamlit)",
+  "scripts": {
+    "sync": "cap sync",
+    "add:ios": "cap add ios",
+    "add:android": "cap add android",
+    "open:ios": "cap open ios",
+    "open:android": "cap open android"
+  },
+  "dependencies": {
+    "@capacitor/core": "^6.1.2",
+    "@capacitor/ios": "^6.1.2",
+    "@capacitor/android": "^6.1.2"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^6.1.2"
+  }
+}

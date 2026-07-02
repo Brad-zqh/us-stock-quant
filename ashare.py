@@ -51,6 +51,38 @@ def _flatten(pool: dict) -> dict[str, str]:
     return out
 
 
+# 代码 -> 中文名 (已知龙头), 供搜索时回填名称
+A_NAME = _flatten(A_UNIVERSE)
+
+
+def normalize_code(raw: str) -> str:
+    """把用户输入的 A 股代码归一化为带交易所后缀的形式。
+
+    支持:  600519 / 600519.SS / sh600519 / 000858 / 000858.SZ / sz000858
+    规则:  6/5/9 开头 -> 上交所 .SS;  0/2/3 开头 -> 深交所 .SZ
+    """
+    s = (raw or "").strip().upper().replace(" ", "")
+    if not s:
+        return ""
+    # 已带后缀
+    if s.endswith(".SS") or s.endswith(".SZ"):
+        return s
+    # sh/sz 前缀
+    if s.startswith("SH") and s[2:].isdigit():
+        return s[2:] + ".SS"
+    if s.startswith("SZ") and s[2:].isdigit():
+        return s[2:] + ".SZ"
+    # 纯数字
+    digits = "".join(ch for ch in s if ch.isdigit())
+    if len(digits) == 6:
+        if digits[0] in ("6", "5", "9"):
+            return digits + ".SS"
+        if digits[0] in ("0", "2", "3"):
+            return digits + ".SZ"
+        return digits + ".SS"
+    return s  # 无法识别, 原样返回
+
+
 def theme_of(code: str) -> str:
     for theme, grp in A_UNIVERSE.items():
         if code in grp:
