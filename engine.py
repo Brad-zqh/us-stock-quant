@@ -441,6 +441,94 @@ def _analyze_one(t, name, d, bench, use_news, use_fundamentals, use_earnings,
     return t, row, det
 
 
+# ----------------------------------------------------------------------------
+# 组合模拟盘: 把整个自选股当成一个组合, 用策略信号逐日调仓, 看整体收益
+# 直接复用每只股票已算好的 backtest (策略/买入持有净值), 无需重新拉数据
+# ----------------------------------------------------------------------------
+def portfolio_backtest(detail: dict, names: dict | None = None,
+                       weight: str = "equal", capital: float = 100000.0) -> dict:
+    """把 detail 里所有标的组合成一个模拟盘。
+
+    weight: "equal" 每日等权再平衡 / "score" 按综合分静态加权
+    capital: 初始资金, 用于换算最终金额
+
+    返回 {strat_equity, bh_equity, strat_stats, bh_stats, contrib, capital,
+          strat_final, bh_final} 。数据不足时 ok=False。
+    """
+    names = names or {}
+    strat_cols, bh_cols, scores = {}, {}, {}
+    for code, info in detail.items():
+        bt = info.get("backtest")
+        if bt is None or len(bt) < 5:
+            continue
+        sr = bt["策略"].pct_change()
+        br = bt["买入持有"].pct_change()
+        if sr.dropna().empty:
+            continue
+        strat_cols[code] = sr
+        bh_cols[code] = br
+        scores[code] = float(info.get("score", 50) or 50)
+
+    if len(strat_cols) == 0:
+        return {"ok": False}
+
+    S = pd.DataFrame(strat_cols).sort_index()
+    B = pd.DataFrame(bh_cols).sort_index()
+
+    if weight == "score" and len(scores):
+        w = pd.Series(scores, dtype=float)
+        w = w.clip(lower=1)                 # 避免负/零权重
+        w = w / w.sum()
+        # 每日按当天有数据的列重新归一, 缺失当 0 收益 (空仓)
+        def wmean(row):
+            avail = row.dropna().index
+            if len(avail) == 0:
+                return 0.0
+            ww = w.reindex(avail)
+            ww = ww / ww.sum()
+            return float((row.reindex(avail) * ww).sum())
+        strat_ret = S.apply(wmean, axis=1)
+        bh_ret = B.apply(wmean, axis=1)
+        weights_disp = (w * 100).round(1)
+    else:
+        # 每日等权: 当天有数据的标的平均
+        strat_ret = S.mean(axis=1, skipna=True).fillna(0.0)
+        bh_ret = B.mean(axis=1, skipna=True).fillna(0.0)
+        eqw = 100.0 / len(strat_cols)
+        weights_disp = pd.Series({c: eqw for c in strat_cols}).round(1)
+
+    strat_eq = (1 + strat_ret.fillna(0)).cumprod()
+    bh_eq = (1 + bh_ret.fillna(0)).cumprod()
+
+    # 每只标的贡献 (整段策略/买入持有总收益)
+    contrib_rows = []
+    for code in strat_cols:
+        s_tot = (1 + S[code].fillna(0)).cumprod().iloc[-1] - 1
+        b_tot = (1 + B[code].fillna(0)).cumprod().iloc[-1] - 1
+        contrib_rows.append({
+            "代码": code,
+            "名称": names.get(code, ""),
+            "综合分": round(scores.get(code, 50), 1),
+            "权重%": float(weights_disp.get(code, 0)),
+            "策略收益%": round(s_tot * 100, 1),
+            "买入持有%": round(b_tot * 100, 1),
+        })
+    contrib = pd.DataFrame(contrib_rows).sort_values("策略收益%", ascending=False)
+
+    return {
+        "ok": True,
+        "n": len(strat_cols),
+        "strat_equity": strat_eq,
+        "bh_equity": bh_eq,
+        "strat_stats": _perf_stats(strat_eq, strat_ret),
+        "bh_stats": _perf_stats(bh_eq, bh_ret),
+        "contrib": contrib,
+        "capital": capital,
+        "strat_final": capital * float(strat_eq.iloc[-1]),
+        "bh_final": capital * float(bh_eq.iloc[-1]),
+    }
+
+
 def market_regime(bench: pd.Series | None) -> dict:
     """大盘环境 (择时风险开关): QQQ 相对 200/50 日线 + 近一月动量。
     返回 {score 0~100, label, mult}. mult 用于轻微缩放个股分 (risk-on 略放大, risk-off 略压缩)。"""

@@ -162,8 +162,8 @@ with st.sidebar.expander("📤 推送信号报告 (邮件/微信)"):
         if cwx:
             st.write(notify.send_wechat("美股量化信号", md))
 
-tab1, tab2, tab3, tab4, tab5, tab7, tab6 = st.tabs(
-    ["🏆 自选股排名", "🔍 个股详情", "🔭 美股科技池",
+tab1, tab2, tab8, tab3, tab4, tab5, tab7, tab6 = st.tabs(
+    ["🏆 自选股排名", "🔍 个股详情", "🧪 模拟盘", "🔭 美股科技池",
      "🇺🇸 美股其他板块", "🇨🇳 A股选股", "💹 指数基金", "📖 模型原理"])
 
 
@@ -443,6 +443,74 @@ with tab2:
         st.caption("👆 在上方输入美股/A股的代码或名称 (支持模糊)，或从自选股下拉选择。"
                    "下方默认显示自选股首只:")
         render_detail(first, detail[first], currency="$", name=watchlist.get(first, ""))
+
+# ================================================================ TAB 8 模拟盘
+with tab8:
+    st.subheader("🧪 模拟盘 — 把自选股当成一个组合回测")
+    st.caption("用量化策略信号(综合分驱动的趋势择时)在历史上逐日调仓, 看整体收益 vs 一直持有不动。"
+               "数据来自当前自选股各自的回测, 切换周期/自选股后点『刷新分析』即同步。")
+
+    c1, c2, c3 = st.columns([1.2, 1, 1])
+    with c1:
+        wmode = st.radio("持仓权重", ["等权重 (每日再平衡)", "按综合分加权"],
+                         horizontal=False, key="pf_w")
+    with c2:
+        cap = st.number_input("初始资金", min_value=1000, max_value=100_000_000,
+                              value=100_000, step=10_000, key="pf_cap")
+    with c3:
+        st.caption("　")
+        run_pf = st.button("▶ 运行模拟盘", type="primary", use_container_width=True)
+
+    if run_pf or st.session_state.get("pf_done"):
+        st.session_state["pf_done"] = True
+        wkey = "score" if wmode.startswith("按综合分") else "equal"
+        with st.spinner("回测组合净值…"):
+            pf = engine.portfolio_backtest(
+                detail, names=watchlist, weight=wkey, capital=float(cap))
+        if not pf.get("ok"):
+            st.warning("自选股回测数据不足, 无法生成模拟盘。请多加几只、拉长数据周期后重试。")
+        else:
+            ss, bs = pf["strat_stats"], pf["bh_stats"]
+            m = st.columns(5)
+            m[0].metric("策略总收益", f"{ss.get('总收益%', 0):.1f}%",
+                        f"买入持有 {bs.get('总收益%', 0):.1f}%")
+            m[1].metric("年化收益", f"{ss.get('年化%', 0):.1f}%",
+                        f"{ss.get('年化%', 0) - bs.get('年化%', 0):+.1f}% vs 持有")
+            m[2].metric("夏普比率", f"{ss.get('夏普', 0):.2f}")
+            m[3].metric("最大回撤", f"{ss.get('最大回撤%', 0):.1f}%",
+                        f"持有 {bs.get('最大回撤%', 0):.1f}%", delta_color="inverse")
+            m[4].metric("持仓胜率", f"{ss.get('持仓胜率%', 0):.1f}%")
+
+            colf = st.columns(2)
+            colf[0].metric(f"策略期末 (投入 {cap:,.0f})", f"{pf['strat_final']:,.0f}")
+            colf[1].metric(f"买入持有期末", f"{pf['bh_final']:,.0f}")
+
+            import plotly.graph_objects as _go
+            fig = _go.Figure()
+            fig.add_trace(_go.Scatter(x=pf["strat_equity"].index,
+                                      y=pf["strat_equity"] * cap,
+                                      name="策略组合", line=dict(color="#ef5350", width=2)))
+            fig.add_trace(_go.Scatter(x=pf["bh_equity"].index,
+                                      y=pf["bh_equity"] * cap,
+                                      name="买入持有", line=dict(color="#8e9199", width=1.6)))
+            fig.update_layout(template="plotly_dark", height=380,
+                              title=f"组合净值曲线 ({pf['n']} 只 · {wmode})",
+                              yaxis_title="资产", margin=dict(t=40, b=10))
+            st.plotly_chart(fig, use_container_width=True)
+
+            st.markdown("**各标的贡献 (整段回测)**")
+            st.dataframe(
+                pf["contrib"].style
+                .background_gradient(subset=["策略收益%"], cmap="RdYlGn_r")
+                .format({"权重%": "{:.1f}", "策略收益%": "{:+.1f}",
+                         "买入持有%": "{:+.1f}", "综合分": "{:.1f}"}),
+                use_container_width=True, height=min(60 + 36 * len(pf["contrib"]), 460))
+
+            st.info("说明: 策略在『综合分转强(站上均线+MACD向上)』时满仓、转弱时空仓, 逐日执行, 次日成交。"
+                    "回撤更小、择时有效时策略会跑赢持有; 单边强牛市里持有可能更高。"
+                    "这是历史模拟, 不代表未来收益, 也未计交易成本/滑点。")
+    else:
+        st.info("点上方『▶ 运行模拟盘』开始。它会用你当前自选股 + 数据周期做组合回测。")
 
 # ================================================================ TAB 3 选股池
 with tab3:
