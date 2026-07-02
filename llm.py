@@ -48,6 +48,79 @@ def has_llm(api_key=None, **kw) -> bool:
     return bool(get_credentials(api_key=api_key, **kw)["api_key"])
 
 
+# ---------------------------------------------------------------- LLM 新闻情绪
+# 在词典/VADER 情绪之上, 再叠一层大模型对整组新闻的语义理解, 作为"新闻情绪"因子的补充。
+# 设计: 默认关闭 (LLM_SENTIMENT=1 才启用), 无 key / 调用失败 / 解析失败一律回退,
+#       对现有行为零影响。带进程内缓存, 避免同批分析重复调用、控制成本。
+_SENT_CACHE: dict[str, float] = {}
+
+
+def _sentiment_enabled() -> bool:
+    return str(os.getenv("LLM_SENTIMENT", "0")).lower() in ("1", "true", "yes", "on")
+
+
+def llm_sentiment_score(headlines, name: str = "", creds: dict | None = None,
+                        timeout: int = 20) -> float | None:
+    """让大模型阅读一组新闻标题, 给出该股 0~100 的情绪分 (50=中性)。
+       只返回一个整数; 无 key / 无新闻 / 失败 / 解析不出数字 -> None (调用方回退)。"""
+    creds = creds or get_credentials()
+    if not creds.get("api_key") or not headlines:
+        return None
+    heads = [str(h).strip() for h in headlines if str(h).strip()][:12]
+    if not heads:
+        return None
+    import hashlib
+    key = hashlib.md5(("|".join(heads)).encode("utf-8")).hexdigest()
+    if key in _SENT_CACHE:
+        return _SENT_CACHE[key]
+    try:
+        import re
+        import requests
+        lines = "\n".join(f"- {h[:180]}" for h in heads)
+        sys_msg = (
+            "你是金融新闻情绪分析器。阅读给定的一组关于某只股票的新闻标题, "
+            "综合判断整体消息面对股价的偏多/偏空程度, 给出一个 0 到 100 的整数分: "
+            "50 表示中性, 越接近 100 越正面(利好), 越接近 0 越负面(利空)。"
+            "要考虑金融语义(如业绩超预期/下调评级/回购/减持/诉讼/获批等)与消息新鲜度。"
+            "只输出这个整数, 不要任何文字、符号或解释。")
+        user_msg = f"股票: {name or '该股'}\n近期新闻标题:\n{lines}\n\n请只回一个 0-100 的整数:"
+        r = requests.post(
+            f"{creds['base_url'].rstrip('/')}/chat/completions",
+            headers={"Authorization": f"Bearer {creds['api_key']}",
+                     "Content-Type": "application/json"},
+            json={"model": creds["model"],
+                  "messages": [{"role": "system", "content": sys_msg},
+                               {"role": "user", "content": user_msg}],
+                  "temperature": 0.0, "max_tokens": 8},
+            timeout=timeout)
+        r.raise_for_status()
+        raw = r.json()["choices"][0]["message"]["content"].strip()
+        m = re.search(r"\d{1,3}", raw)
+        if not m:
+            return None
+        val = float(max(0, min(100, int(m.group()))))
+        _SENT_CACHE[key] = val
+        return val
+    except Exception:
+        return None
+
+
+def blend_llm_sentiment(headlines, base_factor: float, name: str = "",
+                        weight: float = 0.6, creds: dict | None = None) -> float:
+    """把词典/VADER 情绪分与 LLM 情绪分融合。默认 LLM 占 0.6, 词典占 0.4。
+       未启用 / 无 key / 失败时原样返回 base_factor (零影响)。"""
+    if not _sentiment_enabled():
+        return base_factor
+    try:
+        s = llm_sentiment_score(headlines, name=name, creds=creds)
+    except Exception:
+        s = None
+    if s is None:
+        return base_factor
+    w = min(max(weight, 0.0), 1.0)
+    return round(w * s + (1 - w) * base_factor, 1)
+
+
 # ---------------------------------------------------------------- 免费规则版
 def rule_based_journal(trades: list[dict], summ: dict, regime: str = "",
                        cur: str = "$") -> str:

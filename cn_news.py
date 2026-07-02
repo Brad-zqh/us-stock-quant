@@ -88,6 +88,12 @@ def sentiment_factor(code: str) -> tuple[float, list[dict]]:
     wsum = sum(i["weight"] for i in items) or 1
     avg = sum(i["sentiment"] * i["weight"] for i in items) / wsum
     factor = float(np.clip(50 + avg * 80, 0, 100))
+    try:
+        import llm
+        heads = [i["title"] for i in items]
+        factor = llm.blend_llm_sentiment(heads, factor, name=str(code))
+    except Exception:
+        pass
     return round(factor, 1), items
 
 

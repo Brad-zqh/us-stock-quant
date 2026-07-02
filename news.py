@@ -79,7 +79,8 @@ def fetch_news(ticker, max_items: int = 10) -> list[dict]:
 
 
 def sentiment_factor(ticker) -> tuple[float, list[dict]]:
-    """返回 (0~100 情绪分, 新闻列表)。无新闻时返回中性 50。"""
+    """返回 (0~100 情绪分, 新闻列表)。无新闻时返回中性 50。
+    若启用 LLM_SENTIMENT 且配置了大模型 key, 再叠一层 LLM 语义情绪 (补充因子)。"""
     items = fetch_news(ticker)
     if not items:
         return 50.0, []
@@ -87,6 +88,12 @@ def sentiment_factor(ticker) -> tuple[float, list[dict]]:
     avg = sum(i["sentiment"] * i["weight"] for i in items) / wsum   # -1~1
     # 映射到 0~100, 放大斜率让信号更明显
     factor = float(np.clip(50 + avg * 80, 0, 100))
+    try:
+        import llm
+        heads = [f"{i['title']}. {i.get('summary', '')}" for i in items]
+        factor = llm.blend_llm_sentiment(heads, factor, name=str(ticker))
+    except Exception:
+        pass
     return round(factor, 1), items
 
 
