@@ -225,7 +225,8 @@ def rule_based_review(code: str, name: str, score: float, action: str,
         parts.append("需警惕" + "、".join(neg) + "等因子偏弱。")
     if tech:
         import re as _re
-        t0 = _re.sub(r"\s*[\d.]+\s*", "", tech[0]).strip("，。 ")
+        t0 = _re.sub(r"[\d.]+", "", tech[0])
+        t0 = _re.sub(r"[/／]+", "", t0).replace("  ", " ").strip("，。 、")
         if t0:
             parts.append(t0 + "。")
     if regime:

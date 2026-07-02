@@ -312,28 +312,63 @@ def render_detail(code: str, info: dict, currency: str = "$", name: str = ""):
         st.caption(f"(策略解读生成失败: {_e})")
 
     # ---- 🤖 AI 研究员点评 (大模型, 按需触发以控制成本)
-    _creds = _llm_creds_from_ui()
     with st.expander("🤖 AI 研究员点评 — 让大模型综合评述这只股票", expanded=False):
-        if not _creds:
-            st.caption("未检测到大模型 Key。在「🤖 AI 交易员」标签页填入 API Key，"
-                       "或在 Streamlit Secrets 配置 LLM_API_KEY，即可启用大模型点评；"
-                       "当前可用免费规则版点评。")
+        # 就地填 Key: 本面板输入 > AI交易员页/Secrets
+        try:
+            _sec_k = st.secrets.get("LLM_API_KEY", "")
+            _sec_p = st.secrets.get("LLM_PROVIDER", "deepseek")
+        except Exception:
+            _sec_k, _sec_p = "", "deepseek"
+        kc1, kc2 = st.columns([3, 1])
+        _provs = ["deepseek", "openai", "kimi", "qwen"]
+        _pidx = _provs.index(_sec_p) if _sec_p in _provs else 0
+        key_in = kc1.text_input(
+            "大模型 API Key (可选)", type="password", key=f"aikey_{code}",
+            value=st.session_state.get("llm_key", ""),
+            placeholder="留空则用免费规则版点评",
+            help="DeepSeek 最便宜: platform.deepseek.com 拿 sk-xxx。仅本次会话使用, 不保存不上传。")
+        prov_in = kc2.selectbox("服务商", _provs,
+                                index=_provs.index(st.session_state.get("llm_prov", _provs[_pidx]))
+                                if st.session_state.get("llm_prov", _provs[_pidx]) in _provs else _pidx,
+                                key=f"aiprov_{code}")
+        eff_key = key_in or _sec_k
+        st.session_state["llm_prov"] = prov_in
+        if key_in:
+            st.session_state["llm_key"] = key_in      # 同步给 AI 交易员页 & 其他面板
+        _creds = llm.get_credentials(api_key=eff_key, provider=prov_in) if eff_key else None
+
+        if _creds:
+            st.caption(f"✅ 已启用大模型点评 ({_creds.get('model')})，约几分钱/次。")
+        else:
+            st.caption("ℹ️ 未填 Key，将使用**免费规则版**点评。填入上方 Key 即可启用大模型版。")
+
         rk = f"aireview_{code}"
-        cbtn1, cbtn2 = st.columns([1, 3])
-        gen = cbtn1.button("生成 AI 点评", key=f"btn_{rk}",
-                           help="调用大模型生成一段研究点评(约几分钱/次)")
-        if gen:
+        bc1, bc2 = st.columns([1, 2])
+        gen = bc1.button("生成 AI 点评", key=f"btn_{rk}")
+        auto = bc2.checkbox("自动生成 (切换到这只股票就自动出点评)",
+                            key=f"auto_{rk}", value=False)
+        need = gen or (auto and st.session_state.get(rk + "_for") != code)
+        if need:
             try:
                 ex_t = ex if isinstance(ex, dict) else {}
             except Exception:
                 ex_t = {}
             _earn = info.get("earnings") or {}
-            with st.spinner("AI 正在综合评述…"):
-                st.session_state[rk] = llm.llm_stock_review(
-                    code, name, info.get("score", 0), info.get("action", ""),
-                    info.get("factors", {}) or {}, tech=ex_t.get("技术", []),
-                    regime=(res.get("regime", {}) or {}).get("label", ""),
-                    earnings_soon=bool(_earn.get("soon")), creds=_creds)
+            try:
+                # 防 Streamlit 热重载后 llm 模块为旧缓存(缺新函数)导致 AttributeError
+                if not hasattr(llm, "llm_stock_review"):
+                    import importlib
+                    importlib.reload(llm)
+                with st.spinner("AI 正在综合评述…"):
+                    st.session_state[rk] = llm.llm_stock_review(
+                        code, name, info.get("score", 0), info.get("action", ""),
+                        info.get("factors", {}) or {}, tech=ex_t.get("技术", []),
+                        regime=(res.get("regime", {}) or {}).get("label", ""),
+                        earnings_soon=bool(_earn.get("soon")), creds=_creds)
+                    st.session_state[rk + "_for"] = code
+            except Exception as _e:
+                st.session_state[rk] = f"(AI 点评生成失败: {_e})"
+                st.session_state[rk + "_for"] = code
         if st.session_state.get(rk):
             st.markdown(st.session_state[rk])
             st.caption("大模型生成，可能存在偏差，仅供研究参考，不构成投资建议。")
