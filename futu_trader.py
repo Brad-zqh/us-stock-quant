@@ -54,10 +54,29 @@ except Exception:
 MIN_ORDER_USD = 50.0        # 小于此金额的调仓忽略, 免碎单
 DEFAULT_START_CASH = 100_000.0
 
+# 降低交易频率 / 适配小资金 (省手续费):
+#   再平衡死区: 目标与当前市值偏离小于 总资产*REBAL_BAND 时不调仓, 避免为小波动频繁下单。
+#   持仓集中度: 只买综合分最高的 MAX_POSITIONS 只; 0=不限。小资金建议设 3~4。
+REBAL_BAND = float(os.getenv("FUTU_REBAL_BAND", "0.03") or 0.03)
+MAX_POSITIONS = int(float(os.getenv("FUTU_MAX_POSITIONS", "0") or 0))
+
 
 # ---------------------------------------------------------------- 工具
 def _log(msg: str = "") -> None:
     print(msg, flush=True)
+
+
+def _budget() -> "float | None":
+    """投入预算上限 (美元)。设 FUTU_BUDGET 后, 机器人只用这么多钱建仓,
+    不再按账户全部现金 (如模拟盘默认 100 万) 满仓。未设则不限制。"""
+    v = os.getenv("FUTU_BUDGET", "").strip()
+    if not v:
+        return None
+    try:
+        b = float(v)
+    except ValueError:
+        return None
+    return b if b > 0 else None
 
 
 def get_watchlist() -> dict:
@@ -130,8 +149,15 @@ def build_orders(detail: dict, cash: float, positions: dict) -> list[dict]:
     if total <= 0:
         total = cash or DEFAULT_START_CASH
 
+    budget = _budget()
+    if budget is not None:
+        total = min(total, budget)   # 目标仓位按预算算, 不按账户全部资产
+
     targets = compute_target_weights(detail, pos_shares)
     orders: list[dict] = []
+
+    # 再平衡死区: 偏离小于 max(碎单下限, 总资产*REBAL_BAND) 就不调仓, 减少无谓交易/手续费
+    thr = max(MIN_ORDER_USD, REBAL_BAND * total)
 
     # 先卖后买, 释放现金
     sells, buys = [], []
@@ -149,7 +175,7 @@ def build_orders(detail: dict, cash: float, positions: dict) -> list[dict]:
         name = engine.DEFAULT_WATCHLIST.get(code, "")
         info = detail.get(code, {})
         score = info.get("score")
-        if diff < -MIN_ORDER_USD and cur_sh > 0:
+        if diff < -thr and cur_sh > 0:
             qty = min(cur_sh, math.floor((-diff) / px))
             if qty >= 1:
                 act = "清仓" if weight <= 0 else "减仓"
@@ -157,7 +183,7 @@ def build_orders(detail: dict, cash: float, positions: dict) -> list[dict]:
                               "qty": int(qty), "price": round(px, 2),
                               "amount": round(qty * px, 2), "score": score,
                               "reason": f"综合分{score}, {act}至目标{weight*100:.0f}%"})
-        elif diff > MIN_ORDER_USD:
+        elif diff > thr:
             buys.append({"side": "BUY", "ticker": code, "name": name,
                          "price": round(px, 2), "want_usd": diff, "score": score,
                          "reason": f"综合分{score}≥{paper.BUY_SCORE}, 建/加仓至{weight*100:.0f}%"})
@@ -165,7 +191,23 @@ def build_orders(detail: dict, cash: float, positions: dict) -> list[dict]:
     orders.extend(sells)
     # 买入按现金约束依次分配 (分高的先买)
     avail = cash + sum(o["amount"] for o in sells)
-    for o in sorted(buys, key=lambda x: -(x.get("score") or 0)):
+    if budget is not None:
+        # 预算内可用现金 = 预算 - 清仓后仍保留(hold)的持仓市值
+        kept_mv = sum(pos_shares.get(c, 0.0) * (price_of(detail, c) or 0)
+                      for c, w in targets.items() if w is None)
+        avail = min(avail, max(0.0, budget - kept_mv))
+
+    buys = sorted(buys, key=lambda x: -(x.get("score") or 0))
+    if MAX_POSITIONS > 0:
+        # 持仓集中度: 总持仓数不超过 MAX_POSITIONS。卖后仍保留的持仓先占名额,
+        # 加仓已持有的不占新名额, 只在分最高的新票里补满剩余名额。
+        keep_held = {t for t, s in pos_shares.items() if s > 0
+                     and not (isinstance(targets.get(t), (int, float)) and targets.get(t) <= 0)}
+        slots = max(0, MAX_POSITIONS - len(keep_held))
+        add_buys = [b for b in buys if b["ticker"] in keep_held]
+        new_buys = [b for b in buys if b["ticker"] not in keep_held][:slots]
+        buys = add_buys + new_buys
+    for o in buys:
         px = o["price"]
         spend = min(o["want_usd"], avail)
         qty = math.floor(spend / px)
@@ -180,7 +222,11 @@ def build_orders(detail: dict, cash: float, positions: dict) -> list[dict]:
 
 def print_orders(orders: list[dict], cash: float, total: float, env_label: str) -> None:
     _log(f"\n===== 拟下单 ({env_label}) =====")
-    _log(f"账户现金 ${cash:,.0f}　总资产 ${total:,.0f}")
+    b = _budget()
+    if b is not None:
+        _log(f"账户现金 ${cash:,.0f}　投入预算上限 FUTU_BUDGET=${b:,.0f}　按预算建仓")
+    else:
+        _log(f"账户现金 ${cash:,.0f}　总资产 ${total:,.0f}")
     if not orders:
         _log("今日无调仓信号, 维持现有持仓观望。")
         return
@@ -395,6 +441,9 @@ def run(mode: str, auto: bool, push: bool = False) -> int:
         total = cash + sum(
             (price_of(detail, t) or (positions[t].get('price') or 0)) * positions[t]['shares']
             for t in positions)
+        _b = _budget()
+        if _b is not None:
+            total = min(total, _b)
         print_orders(orders, cash, total, env_label)
         if not orders:
             return 0

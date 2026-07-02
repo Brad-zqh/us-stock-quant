@@ -89,6 +89,18 @@ python futu_trader.py --live     # 强制逐笔确认，无法全自动
 | `FUTU_TRADE_PWD` | 交易解锁密码（实盘） | 空 |
 | `FUTU_ALLOW_LIVE` | 设 `1` 才允许真实盘 | 未设=禁用 |
 | `FUTU_START_CASH` | dry-run 假设起始资金 | 100000 |
+| `FUTU_BUDGET` | **投入预算上限**（美元）。模拟盘固定发$100万改不了，用它让机器人只按你的真实资金建仓 | 未设=用账户全部资产 |
+| `FUTU_MAX_POSITIONS` | **最多持有几只**（持仓集中度）。小资金建议 3~4，只买综合分最高的几只 | `0`=不限 |
+| `FUTU_REBAL_BAND` | **再平衡死区**。目标与当前偏离小于 `总资产×此值` 就不调仓，减少无谓交易/手续费 | `0.03`（3%） |
+
+### 💡 小资金推荐配置（真实约 $3,600）
+```powershell
+$env:FUTU_BUDGET        = "3600"   # 按真实资金建仓，不按模拟盘的100万
+$env:FUTU_MAX_POSITIONS = "4"      # 最多持 4 只，避免碎单、手续费吃掉收益
+$env:FUTU_REBAL_BAND    = "0.03"   # 偏离<3%不动，降低交易频率
+python futu_trader.py --paper --yes
+```
+> **建议周频而非日频**：小资金每笔手续费占比高，一周调一次仓即可。不要设日频定时任务真金交易。
 
 ## 常见问题
 - **`未安装 futu-api`**：`pip install futu-api`。
