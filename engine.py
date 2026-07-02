@@ -19,6 +19,8 @@ import numpy as np
 import pandas as pd
 import yfinance as yf
 
+import quotes            # 行情数据层: 优先富途, 回退 yfinance
+
 try:
     import news as news_mod          # 美股英文新闻情绪 (可选)
     _HAS_NEWS = True
@@ -78,26 +80,9 @@ A_BENCHMARK = "510300.SS"   # 沪深300 ETF, A股大盘择时基准
 # 数据获取
 # ----------------------------------------------------------------------------
 def fetch(tickers, period: str = "2y", interval: str = "1d") -> dict[str, pd.DataFrame]:
-    """返回 {ticker: OHLCV DataFrame}. 自动复权."""
-    if isinstance(tickers, str):
-        tickers = [tickers]
-    raw = yf.download(
-        tickers, period=period, interval=interval,
-        auto_adjust=True, progress=False, group_by="ticker", threads=True,
-    )
-    out: dict[str, pd.DataFrame] = {}
-    for t in tickers:
-        try:
-            if isinstance(raw.columns, pd.MultiIndex):
-                df = raw[t] if t in raw.columns.get_level_values(0) else raw.droplevel(0, axis=1)
-            else:
-                df = raw
-            df = df.dropna()
-            if len(df) >= 5:          # 次新股也保留, 后续按数据量标注
-                out[t] = df
-        except Exception:
-            continue
-    return out
+    """返回 {ticker: OHLCV DataFrame}. 自动复权。
+    数据源: 优先富途 OpenD (本地), 失败/云端回退 yfinance —— 见 quotes.py。"""
+    return quotes.fetch(tickers, period=period, interval=interval)
 
 
 # ----------------------------------------------------------------------------
