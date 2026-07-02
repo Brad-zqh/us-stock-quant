@@ -167,23 +167,45 @@ def _cached_or_futu(ctx, ticker: str, start: str, end: str,
 # ----------------------------------------------------------------------------
 # yfinance 回退 (与改造前 engine.fetch 逻辑一致)
 # ----------------------------------------------------------------------------
+def _yf_one(ticker: str, period: str, interval: str) -> "pd.DataFrame | None":
+    """单票兜底: 批量 download 抽风时, 逐票用 Ticker.history 重试 (更稳)。"""
+    try:
+        df = yf.Ticker(ticker).history(period=period, interval=interval, auto_adjust=True)
+        df = df.dropna()
+        if len(df) >= 5:
+            return df[["Open", "High", "Low", "Close", "Volume"]]
+    except Exception:
+        return None
+    return None
+
+
 def _yf_fetch(tickers: list, period: str, interval: str) -> dict:
-    raw = yf.download(
-        tickers, period=period, interval=interval,
-        auto_adjust=True, progress=False, group_by="ticker", threads=True,
-    )
     out: dict = {}
+    try:
+        raw = yf.download(
+            tickers, period=period, interval=interval,
+            auto_adjust=True, progress=False, group_by="ticker", threads=True,
+        )
+        for t in tickers:
+            try:
+                if isinstance(raw.columns, pd.MultiIndex):
+                    df = raw[t] if t in raw.columns.get_level_values(0) else raw.droplevel(0, axis=1)
+                else:
+                    df = raw
+                df = df.dropna()
+                if len(df) >= 5:
+                    out[t] = df
+            except Exception:
+                continue
+    except Exception:
+        pass
+
+    # 批量没取到的, 逐票重试兜底 (yfinance 批量偶发限流, 单票 history 更稳)
     for t in tickers:
-        try:
-            if isinstance(raw.columns, pd.MultiIndex):
-                df = raw[t] if t in raw.columns.get_level_values(0) else raw.droplevel(0, axis=1)
-            else:
-                df = raw
-            df = df.dropna()
-            if len(df) >= 5:
+        if t not in out:
+            df = _yf_one(t, period, interval)
+            if df is not None:
                 out[t] = df
-        except Exception:
-            continue
     return out
 
 
