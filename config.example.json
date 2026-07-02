@@ -7,5 +7,12 @@
     "password": "在此填邮箱授权码(非登录密码)",
     "to": "zhaoqiuhao@zju.edu.cn"
   },
-  "serverchan_key": "在此填 Server酱 SendKey, 申请见 https://sct.ftqq.com"
+  "serverchan_key": "在此填 Server酱 SendKey, 申请见 https://sct.ftqq.com",
+  "llm": {
+    "_说明": "AI交易员『操盘日志』用的大模型。留空则用免费规则版。DeepSeek最便宜。",
+    "provider": "deepseek",
+    "api_key": "在此填 DeepSeek 的 sk-xxxx (https://platform.deepseek.com)",
+    "base_url": "https://api.deepseek.com/v1",
+    "model": "deepseek-chat"
+  }
 }

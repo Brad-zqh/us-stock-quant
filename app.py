@@ -550,12 +550,22 @@ with tab9:
                              help="不填 Key 用免费规则版; 填 Key 用 DeepSeek/OpenAI 等")
 
     llm_key = ""
+    prov = "deepseek"
     if use_llm:
-        with st.expander("🔑 大模型 API 设置 (OpenAI 兼容)", expanded=not llm.has_llm()):
+        # 云端可在 Streamlit Secrets 里配 LLM_API_KEY, 手填优先
+        try:
+            _sec_key = st.secrets.get("LLM_API_KEY", "")
+        except Exception:
+            _sec_key = ""
+        with st.expander("🔑 大模型 API 设置 (OpenAI 兼容)",
+                         expanded=not (_sec_key or llm.has_llm())):
             prov = st.selectbox("服务商", ["deepseek", "openai", "kimi", "qwen"], index=0)
             llm_key = st.text_input("API Key", type="password",
-                                    help="仅本次会话使用, 不上传不保存")
-            st.caption("DeepSeek 最便宜(几分钱/次)。留空则自动用免费规则版日志。")
+                                    help="仅本次会话使用, 不上传不保存") or _sec_key
+            if _sec_key and not st.session_state.get("_shown_sec"):
+                st.caption("✅ 已从 Streamlit Secrets 读到 Key, 无需手填。")
+            st.caption("DeepSeek 最便宜(几分钱/次): platform.deepseek.com 拿 sk-xxx。"
+                       "留空则自动用免费规则版日志。")
 
     if do_reset:
         acc = paper.new_account(float(init_cash))
@@ -593,7 +603,7 @@ with tab9:
     if last_trades or acc.get("last_run"):
         reg_lbl = (res.get("regime", {}) or {}).get("label", "")
         fb = "、".join(f"{r['代码']}{r['盈亏%']:+.0f}%" for r in summ["rows"][:5])
-        creds = llm.get_credentials(api_key=llm_key, provider=locals().get("prov")) \
+        creds = llm.get_credentials(api_key=llm_key, provider=prov) \
             if use_llm else None
         journal = llm.llm_journal(last_trades, summ, regime=reg_lbl,
                                   factors_brief=fb, creds=creds) if use_llm \
