@@ -49,7 +49,8 @@ def has_llm(api_key=None, **kw) -> bool:
 
 
 # ---------------------------------------------------------------- 免费规则版
-def rule_based_journal(trades: list[dict], summ: dict, regime: str = "") -> str:
+def rule_based_journal(trades: list[dict], summ: dict, regime: str = "",
+                       cur: str = "$") -> str:
     lines = []
     if regime:
         lines.append(f"**大盘环境**：{regime}。")
@@ -60,16 +61,16 @@ def rule_based_journal(trades: list[dict], summ: dict, regime: str = "") -> str:
         sells = [t for t in trades if t["side"] == "SELL"]
         if buys:
             lines.append("**加/建仓**：" + "；".join(
-                f"{t['code']} {t.get('name','')} 买入 ${t['amount']:,.0f}（{t['reason']}）"
+                f"{t['code']} {t.get('name','')} 买入 {cur}{t['amount']:,.0f}（{t['reason']}）"
                 for t in buys))
         if sells:
             lines.append("**减/清仓**：" + "；".join(
-                f"{t['code']} {t.get('name','')} 卖出 ${t['amount']:,.0f}"
-                + (f"，实现盈亏 ${t['pnl']:,.0f}" if t.get('pnl') else "")
+                f"{t['code']} {t.get('name','')} 卖出 {cur}{t['amount']:,.0f}"
+                + (f"，实现盈亏 {cur}{t['pnl']:,.0f}" if t.get('pnl') else "")
                 + f"（{t['reason']}）" for t in sells))
     lines.append(
-        f"**账户**：总资产 ${summ['total']:,.0f}（累计 {summ['ret_pct']:+.1f}%），"
-        f"现金 ${summ['cash']:,.0f}，持仓 {summ['n_pos']} 只。")
+        f"**账户**：总资产 {cur}{summ['total']:,.0f}（累计 {summ['ret_pct']:+.1f}%），"
+        f"现金 {cur}{summ['cash']:,.0f}，持仓 {summ['n_pos']} 只。")
     lines.append("_以上为规则引擎自动生成，仅供研究，非投资建议。_")
     return "\n\n".join(lines)
 
@@ -105,10 +106,10 @@ def _clean_journal(txt: str, strip_numbers: bool = False) -> str:
 
 def llm_journal(trades: list[dict], summ: dict, regime: str = "",
                 factors_brief: str = "", creds: dict | None = None,
-                timeout: int = 30) -> str:
+                timeout: int = 30, cur: str = "$") -> str:
     creds = creds or get_credentials()
     if not creds.get("api_key"):
-        return rule_based_journal(trades, summ, regime)
+        return rule_based_journal(trades, summ, regime, cur=cur)
     try:
         import requests
 
@@ -180,10 +181,10 @@ def llm_journal(trades: list[dict], summ: dict, regime: str = "",
         body = cleaned.replace("仅供研究，非投资建议。", "").strip()
         # 大模型偶尔仍会跑偏(过短/残留表格/大段罗列), 兜底回退到准确的规则版
         if len(body) < 40 or "|" in raw or body.count("：") > 4:
-            return rule_based_journal(trades, summ, regime)
+            return rule_based_journal(trades, summ, regime, cur=cur)
         return cleaned
     except Exception as e:
-        return rule_based_journal(trades, summ, regime) + f"\n\n_(大模型调用失败，已用规则版：{e})_"
+        return rule_based_journal(trades, summ, regime, cur=cur) + f"\n\n_(大模型调用失败，已用规则版：{e})_"
 
 
 # ---------------------------------------------------------------- 个股 AI 点评

@@ -1,5 +1,5 @@
 {
-  "version": "1.0.5",
-  "notes": "macOS 安装包改为通用二进制(Intel+Apple 芯片通吃)；下载页 mac 解锁说明更清晰。含 AI 研究员个股点评、AI 交易员每日自动运行+微信推送、模拟盘账户。",
+  "version": "1.0.6",
+  "notes": "AI 交易员支持美股/A股两个独立模拟账户(各自调仓/操盘日志/盈亏曲线/货币$与¥), 每日自动运行推送两市场; mac 安装包通用二进制。",
   "downloadUrl": "https://brad-zqh.github.io/us-stock-quant/download.html"
 }

@@ -12,6 +12,7 @@ import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import streamlit as st
+import os
 
 import engine
 import notify
@@ -68,6 +69,14 @@ def load_screen(market: str, exclude: tuple, period: str, use_fund: bool, top: i
     pool = {k: v for k, v in pool_full.items() if (not themes or k in themes)}
     return universe.screen(exclude=set(exclude), period=period,
                            use_news=False, use_fundamentals=use_fund, top=top, pool=pool)
+
+
+@st.cache_data(ttl=900, show_spinner="🇨🇳 AI 交易员拉取A股行情中…")
+def load_ai_cn(period: str):
+    """AI 交易员 A股龙头池独立分析 (与侧边栏美股分析互不影响)。"""
+    return engine.analyze(engine.A_SHARE_WATCHLIST, period=period,
+                          use_news=False, use_fundamentals=True, use_earnings=False,
+                          benchmark=engine.A_BENCHMARK, bench_label="沪深300")
 
 
 @st.cache_data(ttl=1800, show_spinner="🇨🇳 扫描A股龙头中…")
@@ -610,20 +619,48 @@ with tab8:
 # ================================================================ TAB 9 AI 交易员
 with tab9:
     st.subheader("🤖 AI 交易员 — 自动决策的模拟账户")
-    st.caption("一个起始 $10万 的虚拟账户, 每次『执行今日交易』会按综合分自动调仓"
+    st.caption("一个起始虚拟资金的账户, 每次『执行今日交易』会按综合分自动调仓"
                "(≥58 建/加仓到建议仓位·单票≤25%, <45 清仓, 中间持有), "
-               "持仓、成交、盈亏曲线全部保存, 像一个会自己操盘的 AI 交易员。")
+               "持仓、成交、盈亏曲线全部保存, 像一个会自己操盘的 AI 交易员。"
+               "美股 / A股 各一个独立账户。")
 
-    if "acc" not in st.session_state:
-        st.session_state["acc"] = paper.load_account()
-    acc = st.session_state["acc"]
+    # ---- 市场切换: 美股科技池 / A股龙头池 (各自独立账户)
+    _mkt = st.radio("交易市场", ["🇺🇸 美股科技池", "🇨🇳 A股龙头池"],
+                    horizontal=True, key="ai_market")
+    is_cn = _mkt.startswith("🇨🇳")
+
+    if is_cn:
+        res_ai = load_ai_cn(period)
+        detail_ai = res_ai.get("detail", {})
+        watch_ai = engine.A_SHARE_WATCHLIST
+        cur = "¥"
+        acc_path = os.path.join(os.path.dirname(paper._DEFAULT_PATH), "paper_account_cn.json")
+        default_cash = 1_000_000
+        acc_key, lt_key = "acc_cn", "last_trades_cn"
+        dl_name = "paper_account_cn.json"
+        st.caption(f"当前池: A股龙头 {len(watch_ai)} 只 · 基准 沪深300 · 价格单位 ¥")
+    else:
+        res_ai = res
+        detail_ai = detail
+        watch_ai = watchlist
+        cur = "$"
+        acc_path = paper._DEFAULT_PATH
+        default_cash = 100_000
+        acc_key, lt_key = "acc", "last_trades"
+        dl_name = "paper_account.json"
+        st.caption(f"当前池: 美股(侧边栏自选股) {len(watch_ai)} 只 · 基准 QQQ · 价格单位 $")
+
+    if acc_key not in st.session_state:
+        st.session_state[acc_key] = paper.load_account(acc_path)
+    acc = st.session_state[acc_key]
 
     ct = st.columns([1, 1, 1, 1.2])
-    do_trade = ct[0].button("▶ 执行今日交易", type="primary", use_container_width=True)
-    do_reset = ct[1].button("↺ 重置账户", use_container_width=True)
-    init_cash = ct[2].number_input("起始资金", 1000, 100_000_000, 100_000, 10_000,
-                                   key="ai_cap")
-    use_llm = ct[3].checkbox("用大模型写操盘日志 (可选)", value=False,
+    do_trade = ct[0].button("▶ 执行今日交易", type="primary", use_container_width=True,
+                            key=f"trade_{acc_key}")
+    do_reset = ct[1].button("↺ 重置账户", use_container_width=True, key=f"reset_{acc_key}")
+    init_cash = ct[2].number_input("起始资金", 1000, 1_000_000_000, default_cash, 10_000,
+                                   key=f"cap_{acc_key}")
+    use_llm = ct[3].checkbox("用大模型写操盘日志 (可选)", value=False, key=f"usellm_{acc_key}",
                              help="不填 Key 用免费规则版; 填 Key 用 DeepSeek/OpenAI 等")
 
     llm_key = ""
@@ -636,59 +673,60 @@ with tab9:
             _sec_key = ""
         with st.expander("🔑 大模型 API 设置 (OpenAI 兼容)",
                          expanded=not (_sec_key or llm.has_llm())):
-            prov = st.selectbox("服务商", ["deepseek", "openai", "kimi", "qwen"], index=0)
-            llm_key = st.text_input("API Key", type="password",
+            prov = st.selectbox("服务商", ["deepseek", "openai", "kimi", "qwen"], index=0,
+                                key=f"prov_{acc_key}")
+            llm_key = st.text_input("API Key", type="password", key=f"key_{acc_key}",
                                     help="仅本次会话使用, 不上传不保存") or _sec_key
             # 存入会话, 供搜索页「AI 研究员点评」共用
             st.session_state["llm_prov"] = prov
             if llm_key:
                 st.session_state["llm_key"] = llm_key
-            if _sec_key and not st.session_state.get("_shown_sec"):
+            if _sec_key:
                 st.caption("✅ 已从 Streamlit Secrets 读到 Key, 无需手填。")
             st.caption("DeepSeek 最便宜(几分钱/次): platform.deepseek.com 拿 sk-xxx。"
                        "留空则自动用免费规则版日志。")
 
     if do_reset:
         acc = paper.new_account(float(init_cash))
-        st.session_state["acc"] = acc
-        paper.save_account(acc)
+        st.session_state[acc_key] = acc
+        paper.save_account(acc, acc_path)
         st.success("账户已重置。")
 
-    last_trades = st.session_state.get("last_trades", [])
+    last_trades = st.session_state.get(lt_key, [])
     if do_trade:
-        if not detail:
-            st.warning("当前没有可交易的自选股数据, 请先在左侧刷新分析。")
+        if not detail_ai:
+            st.warning("当前市场没有可交易的行情数据, 请稍后重试或切换市场。")
         else:
-            reg_lbl = (res.get("regime", {}) or {}).get("label", "")
-            last_trades = paper.rebalance(acc, detail, names=watchlist,
+            reg_lbl = (res_ai.get("regime", {}) or {}).get("label", "")
+            last_trades = paper.rebalance(acc, detail_ai, names=watch_ai,
                                           reason_regime=reg_lbl)
-            paper.save_account(acc)
-            st.session_state["acc"] = acc
-            st.session_state["last_trades"] = last_trades
+            paper.save_account(acc, acc_path)
+            st.session_state[acc_key] = acc
+            st.session_state[lt_key] = last_trades
             if last_trades:
                 st.success(f"已执行 {len(last_trades)} 笔调仓。")
             else:
                 st.info("今日信号未触发调仓, 维持原持仓。")
 
     # ---- 账户概览
-    summ = paper.summary(acc, detail)
+    summ = paper.summary(acc, detail_ai)
     mc = st.columns(4)
-    mc[0].metric("总资产", f"${summ['total']:,.0f}",
+    mc[0].metric("总资产", f"{cur}{summ['total']:,.0f}",
                  f"{summ['ret_pct']:+.1f}% 累计")
-    mc[1].metric("现金", f"${summ['cash']:,.0f}")
-    mc[2].metric("持仓市值", f"${summ['invested']:,.0f}")
+    mc[1].metric("现金", f"{cur}{summ['cash']:,.0f}")
+    mc[2].metric("持仓市值", f"{cur}{summ['invested']:,.0f}")
     mc[3].metric("持仓数", f"{summ['n_pos']} 只",
                  f"{summ['n_trades']} 笔成交")
 
     # ---- 操盘日志
     if last_trades or acc.get("last_run"):
-        reg_lbl = (res.get("regime", {}) or {}).get("label", "")
+        reg_lbl = (res_ai.get("regime", {}) or {}).get("label", "")
         fb = "、".join(f"{r['代码']}{r['盈亏%']:+.0f}%" for r in summ["rows"][:5])
         creds = llm.get_credentials(api_key=llm_key, provider=prov) \
             if use_llm else None
         journal = llm.llm_journal(last_trades, summ, regime=reg_lbl,
-                                  factors_brief=fb, creds=creds) if use_llm \
-            else llm.rule_based_journal(last_trades, summ, regime=reg_lbl)
+                                  factors_brief=fb, creds=creds, cur=cur) if use_llm \
+            else llm.rule_based_journal(last_trades, summ, regime=reg_lbl, cur=cur)
         st.markdown("#### 📓 操盘日志")
         st.markdown(journal)
 
@@ -714,10 +752,10 @@ with tab9:
         fig.add_trace(_go.Scatter(x=[p["date"] for p in ec],
                                   y=[p["total"] for p in ec],
                                   name="总资产", line=dict(color="#ef5350", width=2)))
-        fig.add_hline(y=acc.get("start_cash", 100000), line_dash="dash",
+        fig.add_hline(y=acc.get("start_cash", default_cash), line_dash="dash",
                       line_color="#8e9199", annotation_text="起始资金")
         fig.update_layout(template="plotly_dark", height=300,
-                          title="账户总资产曲线", margin=dict(t=40, b=10))
+                          title=f"账户总资产曲线 ({cur})", margin=dict(t=40, b=10))
         st.plotly_chart(fig, use_container_width=True)
 
     # ---- 成交流水
@@ -735,13 +773,14 @@ with tab9:
         import json as _json
         st.download_button("⬇ 下载账户存档 (JSON)",
                            data=_json.dumps(acc, ensure_ascii=False, indent=2),
-                           file_name="paper_account.json", mime="application/json")
-        up = st.file_uploader("⬆ 上传账户存档恢复", type=["json"], key="acc_up")
+                           file_name=dl_name, mime="application/json",
+                           key=f"dl_{acc_key}")
+        up = st.file_uploader("⬆ 上传账户存档恢复", type=["json"], key=f"accup_{acc_key}")
         if up is not None:
             try:
                 acc2 = _json.load(up)
-                st.session_state["acc"] = acc2
-                paper.save_account(acc2)
+                st.session_state[acc_key] = acc2
+                paper.save_account(acc2, acc_path)
                 st.success("已恢复账户存档, 请重新运行查看。")
             except Exception as _e:
                 st.error(f"存档解析失败: {_e}")

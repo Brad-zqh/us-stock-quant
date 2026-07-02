@@ -60,6 +60,19 @@ DEFAULT_WATCHLIST = {
 }
 BENCHMARK = "QQQ"   # 相对强度基准 (纳指 ETF, 科技股更合适)
 
+# A股龙头池 (yfinance 后缀: .SS 上证 / .SZ 深证), AI 交易员 A股账户默认池
+A_SHARE_WATCHLIST = {
+    "600519.SS": "贵州茅台",
+    "300750.SZ": "宁德时代",
+    "601318.SS": "中国平安",
+    "000858.SZ": "五粮液",
+    "600036.SS": "招商银行",
+    "002594.SZ": "比亚迪",
+    "000333.SZ": "美的集团",
+    "600900.SS": "长江电力",
+}
+A_BENCHMARK = "510300.SS"   # 沪深300 ETF, A股大盘择时基准
+
 
 # ----------------------------------------------------------------------------
 # 数据获取
@@ -529,8 +542,8 @@ def portfolio_backtest(detail: dict, names: dict | None = None,
     }
 
 
-def market_regime(bench: pd.Series | None) -> dict:
-    """大盘环境 (择时风险开关): QQQ 相对 200/50 日线 + 近一月动量。
+def market_regime(bench: pd.Series | None, label: str = "QQQ") -> dict:
+    """大盘环境 (择时风险开关): 基准相对 200/50 日线 + 近一月动量。
     返回 {score 0~100, label, mult}. mult 用于轻微缩放个股分 (risk-on 略放大, risk-off 略压缩)。"""
     if bench is None or len(bench) < 60:
         return {"score": 50, "label": "未知", "mult": 1.0, "detail": ""}
@@ -544,24 +557,26 @@ def market_regime(bench: pd.Series | None) -> dict:
     s += float(np.clip(mom20 * 200, -15, 15))
     s = float(np.clip(s, 0, 100))
     if s >= 65:
-        label, mult = "🟢 Risk-On 进攻", 1.05
+        rlabel, mult = "🟢 Risk-On 进攻", 1.05
     elif s >= 45:
-        label, mult = "🟡 中性", 1.0
+        rlabel, mult = "🟡 中性", 1.0
     else:
-        label, mult = "🔴 Risk-Off 防御", 0.93
-    detail = (f"QQQ {'在' if c > sma200 else '跌破'}200日线, "
+        rlabel, mult = "🔴 Risk-Off 防御", 0.93
+    detail = (f"{label} {'在' if c > sma200 else '跌破'}200日线, "
               f"{'在' if c > sma50 else '跌破'}50日线, 近月{mom20*100:+.1f}%")
-    return {"score": round(s, 1), "label": label, "mult": mult, "detail": detail}
+    return {"score": round(s, 1), "label": rlabel, "mult": mult, "detail": detail}
 
 
 def analyze(watchlist: dict[str, str], period: str = "2y",
             use_news: bool = True, use_fundamentals: bool = True,
             use_earnings: bool = False, max_workers: int = 8,
-            use_regime: bool = True) -> dict:
+            use_regime: bool = True, benchmark: str = BENCHMARK,
+            bench_label: str = "") -> dict:
     tickers = list(watchlist.keys())
-    data = fetch(tickers + [BENCHMARK], period=period)
-    bench = data[BENCHMARK]["Close"] if BENCHMARK in data else None
-    regime = market_regime(bench) if use_regime else {"score": 50, "label": "—", "mult": 1.0, "detail": ""}
+    data = fetch(tickers + [benchmark], period=period)
+    bench = data[benchmark]["Close"] if benchmark in data else None
+    regime = market_regime(bench, label=bench_label or benchmark) if use_regime \
+        else {"score": 50, "label": "—", "mult": 1.0, "detail": ""}
 
     # 预先算好(CPU)指标, 再并行做(网络)新闻/基本面/财报
     jobs = [(t, watchlist[t], add_indicators(data[t])) for t in tickers if t in data]
@@ -580,7 +595,10 @@ def analyze(watchlist: dict[str, str], period: str = "2y",
             except Exception:
                 continue
 
-    table = pd.DataFrame(results).sort_values("综合分", ascending=False).reset_index(drop=True)
+    if results:
+        table = pd.DataFrame(results).sort_values("综合分", ascending=False).reset_index(drop=True)
+    else:
+        table = pd.DataFrame()   # 全部行情拉取失败: 返回空表, 不崩
     return {"table": table, "detail": detail, "regime": regime,
             "asof": dt.datetime.now().strftime("%Y-%m-%d %H:%M")}
 

@@ -5,6 +5,7 @@ config.json
 streamlit.log
 paper_account.json
 !state/paper_account.json
+!state/paper_account_cn.json
 __pycache__/
 *.pyc
 .DS_Store

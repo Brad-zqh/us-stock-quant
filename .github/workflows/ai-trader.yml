@@ -51,7 +51,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -f state/paper_account.json
+          git add -f state/*.json
           if git diff --cached --quiet; then
             echo "账户无变化, 跳过提交。"
           else
