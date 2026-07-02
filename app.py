@@ -19,7 +19,7 @@ import universe
 import ashare
 import resolve
 
-st.set_page_config(page_title="美股量化选股看板", layout="wide", page_icon="📈")
+st.set_page_config(page_title="皓哥量化", layout="wide", page_icon="📈")
 
 # ---------------------------------------------------------------- 侧边栏配置
 st.sidebar.title("⚙️ 配置")
@@ -94,7 +94,7 @@ if refresh:
 res = load(watchlist, period, use_news, use_fund)
 table, detail = res["table"], res["detail"]
 
-st.title("📈 美股量化选股看板")
+st.title("📈 皓哥量化")
 
 # ---------------------------------------------------------------- 顶部下载 App 入口
 _DL_PAGE = "https://brad-zqh.github.io/us-stock-quant/download.html"
