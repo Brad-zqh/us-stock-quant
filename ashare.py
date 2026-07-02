@@ -92,10 +92,12 @@ def theme_of(code: str) -> str:
 
 def screen(exclude: set[str] | None = None, period: str = "1y",
            use_fundamentals: bool = True, top: int = 15,
-           use_news: bool = True) -> pd.DataFrame:
-    """A 股扫描。use_news=True 时用中文新闻情绪 (akshare)。"""
+           use_news: bool = True, themes: tuple | None = None) -> pd.DataFrame:
+    """A 股扫描。use_news=True 时用中文新闻情绪 (akshare)。
+    themes 非空时只扫描选中的行业主题 (A_UNIVERSE 的键)。"""
     exclude = exclude or set()
-    wl = {k: v for k, v in _flatten(A_UNIVERSE).items() if k not in exclude}
+    pool = {t: g for t, g in A_UNIVERSE.items() if (not themes or t in themes)}
+    wl = {k: v for k, v in _flatten(pool).items() if k not in exclude}
     res = engine.analyze(wl, period=period, use_news=use_news,
                          use_fundamentals=use_fundamentals)
     t = res["table"].copy()

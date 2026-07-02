@@ -18,6 +18,7 @@ import notify
 import universe
 import ashare
 import resolve
+import funds
 
 st.set_page_config(page_title="皓哥量化", layout="wide", page_icon="📈")
 
@@ -50,16 +51,32 @@ def load(wl: dict, period: str, use_news: bool, use_fund: bool):
 
 
 @st.cache_data(ttl=1800, show_spinner="🔭 扫描美股股票池中…")
-def load_screen(market: str, exclude: tuple, period: str, use_fund: bool, top: int):
-    pool = universe.US_SECTORS if market == "非科技" else universe.TECH_UNIVERSE
+def load_screen(market: str, exclude: tuple, period: str, use_fund: bool, top: int,
+                themes: tuple = ()):
+    pool_full = universe.US_SECTORS if market == "非科技" else universe.TECH_UNIVERSE
+    pool = {k: v for k, v in pool_full.items() if (not themes or k in themes)}
     return universe.screen(exclude=set(exclude), period=period,
                            use_news=False, use_fundamentals=use_fund, top=top, pool=pool)
 
 
 @st.cache_data(ttl=1800, show_spinner="🇨🇳 扫描A股龙头中…")
-def ashare_screen_cached(period: str, use_fund: bool, top: int, use_news: bool):
+def ashare_screen_cached(period: str, use_fund: bool, top: int, use_news: bool,
+                         themes: tuple = ()):
     return ashare.screen(period=period, use_fundamentals=use_fund,
-                         top=top, use_news=use_news)
+                         top=top, use_news=use_news, themes=themes)
+
+
+@st.cache_data(ttl=1800, show_spinner="💹 扫描指数基金中…")
+def load_fund_screen(market: str, period: str, use_fund: bool, top: int, themes: tuple = ()):
+    pool_full = funds.US_INDEX if market == "US" else funds.CN_INDEX
+    pool = {k: v for k, v in pool_full.items() if (not themes or k in themes)}
+    return universe.screen(exclude=set(), period=period, use_news=False,
+                           use_fundamentals=use_fund, top=top, pool=pool)
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def search_fund_cached(q: str, market: str):
+    return funds.search_fund(q, market)
 
 
 @st.cache_data(ttl=900, show_spinner="🔎 分析该股票中…")
@@ -87,9 +104,11 @@ if refresh:
     load.clear()
     load_screen.clear()
     ashare_screen_cached.clear()
+    load_fund_screen.clear()
     analyze_single.clear()
     search_us_cached.clear()
     search_a_cached.clear()
+    search_fund_cached.clear()
 
 res = load(watchlist, period, use_news, use_fund)
 table, detail = res["table"], res["detail"]
@@ -142,9 +161,9 @@ with st.sidebar.expander("📤 推送信号报告 (邮件/微信)"):
         if cwx:
             st.write(notify.send_wechat("美股量化信号", md))
 
-tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(
+tab1, tab2, tab3, tab4, tab5, tab7, tab6 = st.tabs(
     ["🏆 自选股排名", "🔍 个股详情", "🔭 美股科技池",
-     "🇺🇸 美股其他板块", "🇨🇳 A股选股", "📖 模型原理"])
+     "🇺🇸 美股其他板块", "🇨🇳 A股选股", "💹 指数基金", "📖 模型原理"])
 
 
 def _render_screen(scr, currency="$"):
@@ -396,54 +415,107 @@ with tab2:
 # ================================================================ TAB 3 选股池
 with tab3:
     st.markdown("#### 🔭 高科技股票池扫描 — 在你持仓之外找机会")
+    tech_themes = list(universe.TECH_UNIVERSE.keys())
+    sel3 = st.multiselect("① 先选领域 (留空=全部科技主题)", tech_themes, default=[],
+                          key="theme_tech", placeholder="选择一个或多个主题…")
     cset = st.columns([1, 1, 2])
     top_n = cset[0].slider("显示前 N 名", 5, 30, 15)
     excl_held = cset[1].checkbox("排除已持仓", value=True)
-    cset[2].caption(f"覆盖主题: {' · '.join(universe.TECH_UNIVERSE.keys())}")
+    cset[2].caption(f"可选主题: {' · '.join(tech_themes)}")
 
     exclude = set(watchlist.keys()) if excl_held else set()
     if st.button("🔭 开始扫描科技池 (约30-60秒)", key="scan_tech", type="primary") \
             or st.session_state.get("scanned_tech"):
         st.session_state["scanned_tech"] = True
-        scr = load_screen("科技", tuple(sorted(exclude)), period, use_fund, top_n)
+        scr = load_screen("科技", tuple(sorted(exclude)), period, use_fund, top_n,
+                          tuple(sel3))
         _render_screen(scr)
     else:
-        st.info("点上方按钮开始扫描 ~45 只科技龙头。(放在按钮后是为了页面打开够快)")
+        st.info("先在上方选领域(可留空=全部)，再点按钮开始扫描。")
     st.caption("股票池在 universe.py 里, 可自行增删。扫描默认不含新闻(提速), 缓存 30 分钟。"
                "⚠️ 仅供研究, 非投资建议。")
 
 # ================================================================ TAB 4 美股其他板块
 with tab4:
     st.markdown("#### 🇺🇸 美股非科技板块 — 价值/防御/周期, 给科技仓位做分散")
-    st.caption(f"覆盖: {' · '.join(universe.US_SECTORS.keys())}")
+    other_themes = list(universe.US_SECTORS.keys())
+    sel4 = st.multiselect("① 先选领域 (留空=全部板块)", other_themes, default=[],
+                          key="theme_other", placeholder="选择一个或多个板块…")
     c4a, c4b = st.columns([1, 3])
     topn4 = c4a.slider("显示前 N 名", 5, 30, 15, key="topn4")
+    c4b.caption(f"可选板块: {' · '.join(other_themes)}")
     if st.button("🇺🇸 开始扫描非科技板块 (约30-60秒)", key="scan_other", type="primary") \
             or st.session_state.get("scanned_other"):
         st.session_state["scanned_other"] = True
-        scr4 = load_screen("非科技", (), period, use_fund, topn4)
+        scr4 = load_screen("非科技", (), period, use_fund, topn4, tuple(sel4))
         _render_screen(scr4)
     else:
-        st.info("点上方按钮开始扫描 ~40 只金融/医疗/消费/能源工业/通信龙头。")
+        st.info("先在上方选板块(可留空=全部)，再点按钮开始扫描。")
     st.caption("⚠️ 仅供研究, 非投资建议。")
 
 # ================================================================ TAB 5 A股
 with tab5:
     st.markdown("#### 🇨🇳 A股龙头选股 — 沪深主要行业龙头")
-    st.caption(f"覆盖: {' · '.join(ashare.A_UNIVERSE.keys())}　|　"
-               "说明: A股无英文新闻因子; 分析师评级部分缺失时取中性。价格为人民币¥。")
+    a_themes = list(ashare.A_UNIVERSE.keys())
+    sel5 = st.multiselect("① 先选行业 (留空=全部行业)", a_themes, default=[],
+                          key="theme_a", placeholder="选择一个或多个行业…")
+    st.caption("说明: A股无英文新闻因子; 分析师评级部分缺失时取中性。价格为人民币¥。")
     c5a, c5b = st.columns([1, 3])
     topn5 = c5a.slider("显示前 N 名", 5, 30, 15, key="topn5")
     a_news = c5b.checkbox("中文新闻情绪 (akshare, 海外服务器可能超时)", value=False)
     if st.button("🇨🇳 开始扫描A股 (约1-2分钟)", key="scan_a", type="primary") \
             or st.session_state.get("scanned_a"):
         st.session_state["scanned_a"] = True
-        scr5 = ashare_screen_cached(period, use_fund, topn5, a_news)
+        scr5 = ashare_screen_cached(period, use_fund, topn5, a_news, tuple(sel5))
         _render_screen(scr5, currency="¥")
     else:
-        st.info("点上方按钮开始扫描 A股龙头。注意: 本应用部署在海外服务器, "
+        st.info("先在上方选行业(可留空=全部)，再点按钮开始扫描。注意: 本应用部署在海外服务器, "
                 "A股数据 (尤其中文新闻) 可能较慢或超时; 本地运行最稳。")
     st.caption("股票池在 ashare.py 里。沪市.SS/深市.SZ。⚠️ 仅供研究, 非投资建议。")
+
+# ================================================================ TAB 7 指数基金
+with tab7:
+    st.markdown("#### 💹 指数基金 / ETF — 美国 · 中国 指数择时与轮动")
+    st.caption("ETF 无基本面/分析师/财报因子, 打分主看趋势·动量·技术面 + 大盘环境, "
+               "适合做指数择时/板块轮动参考。美国ETF为$, 中国ETF为¥。")
+    fmkt = st.radio("市场", ["🇺🇸 美国指数", "🇨🇳 中国指数"], horizontal=True, key="fund_mkt")
+    is_us = fmkt.startswith("🇺🇸")
+    pool = funds.US_INDEX if is_us else funds.CN_INDEX
+    cur = "$" if is_us else "¥"
+    mkey = "US" if is_us else "CN"
+
+    fsel = st.multiselect("① 先选领域 (留空=全部)", list(pool.keys()), default=[],
+                          key=f"theme_fund_{mkey}", placeholder="宽基 / 行业 / 债券黄金 / 主题…")
+    fc1, fc2 = st.columns([1, 2])
+    topnf = fc1.slider("显示前 N 名", 5, 30, 15, key=f"topnf_{mkey}")
+    fq = fc2.text_input("② 或直接搜索单只基金 (代码/中文名, 如 QQQ / 纳斯达克 / 沪深300)",
+                        key=f"fund_q_{mkey}", placeholder="留空则走上方扫描").strip()
+
+    # 单只基金详情优先
+    if fq:
+        cands = search_fund_cached(fq, mkey)
+        if not cands:
+            st.warning("基金池里未匹配到；可到「个股详情」直接输入 ETF 代码 (如 SPY / 510300.SS)。")
+        else:
+            i = st.selectbox("匹配结果", range(len(cands)),
+                             format_func=lambda i: f"{cands[i][0]} · {cands[i][1]}",
+                             key=f"fund_pick_{mkey}")
+            fcode, fname = cands[i]
+            finfo = analyze_single(fcode, fname, period, False, use_fund)
+            if not finfo or finfo.get("__error__") or "df" not in finfo:
+                st.error(f"未能获取 {fcode} 的行情数据。")
+            else:
+                render_detail(fcode, finfo, currency=cur, name=fname)
+    else:
+        if st.button("💹 开始扫描指数基金 (约30-60秒)", key=f"scan_fund_{mkey}",
+                     type="primary") or st.session_state.get(f"scanned_fund_{mkey}"):
+            st.session_state[f"scanned_fund_{mkey}"] = True
+            scrf = load_fund_screen(mkey, period, use_fund, topnf, tuple(fsel))
+            _render_screen(scrf, currency=cur)
+        else:
+            st.info("先选领域(可留空=全部)再点扫描；或在②直接搜索单只基金看详情。")
+    st.caption("基金池在 funds.py 里, 可自行增删。⚠️ 仅供研究, 非投资建议。")
+
 
 # ================================================================ TAB 6 模型原理
 with tab6:
