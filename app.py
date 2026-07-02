@@ -20,6 +20,8 @@ import ashare
 import resolve
 import funds
 import explain
+import paper
+import llm
 
 st.set_page_config(page_title="皓哥量化", layout="wide", page_icon="📈")
 
@@ -178,8 +180,8 @@ with st.sidebar.expander("📤 推送信号报告 (邮件/微信)"):
         if cwx:
             st.write(notify.send_wechat("美股量化信号", md))
 
-tab1, tab2, tab8, tab3, tab4, tab5, tab7, tab6 = st.tabs(
-    ["🏆 自选股排名", "🔍 个股详情", "🧪 模拟盘", "🔭 美股科技池",
+tab1, tab2, tab8, tab9, tab3, tab4, tab5, tab7, tab6 = st.tabs(
+    ["🏆 自选股排名", "🔍 个股详情", "🧪 模拟盘", "🤖 AI 交易员", "🔭 美股科技池",
      "🇺🇸 美股其他板块", "🇨🇳 A股选股", "💹 指数基金", "📖 模型原理"])
 
 
@@ -527,6 +529,133 @@ with tab8:
                     "这是历史模拟, 不代表未来收益, 也未计交易成本/滑点。")
     else:
         st.info("点上方『▶ 运行模拟盘』开始。它会用你当前自选股 + 数据周期做组合回测。")
+
+# ================================================================ TAB 9 AI 交易员
+with tab9:
+    st.subheader("🤖 AI 交易员 — 自动决策的模拟账户")
+    st.caption("一个起始 $10万 的虚拟账户, 每次『执行今日交易』会按综合分自动调仓"
+               "(≥58 建/加仓到建议仓位·单票≤25%, <45 清仓, 中间持有), "
+               "持仓、成交、盈亏曲线全部保存, 像一个会自己操盘的 AI 交易员。")
+
+    if "acc" not in st.session_state:
+        st.session_state["acc"] = paper.load_account()
+    acc = st.session_state["acc"]
+
+    ct = st.columns([1, 1, 1, 1.2])
+    do_trade = ct[0].button("▶ 执行今日交易", type="primary", use_container_width=True)
+    do_reset = ct[1].button("↺ 重置账户", use_container_width=True)
+    init_cash = ct[2].number_input("起始资金", 1000, 100_000_000, 100_000, 10_000,
+                                   key="ai_cap")
+    use_llm = ct[3].checkbox("用大模型写操盘日志 (可选)", value=False,
+                             help="不填 Key 用免费规则版; 填 Key 用 DeepSeek/OpenAI 等")
+
+    llm_key = ""
+    if use_llm:
+        with st.expander("🔑 大模型 API 设置 (OpenAI 兼容)", expanded=not llm.has_llm()):
+            prov = st.selectbox("服务商", ["deepseek", "openai", "kimi", "qwen"], index=0)
+            llm_key = st.text_input("API Key", type="password",
+                                    help="仅本次会话使用, 不上传不保存")
+            st.caption("DeepSeek 最便宜(几分钱/次)。留空则自动用免费规则版日志。")
+
+    if do_reset:
+        acc = paper.new_account(float(init_cash))
+        st.session_state["acc"] = acc
+        paper.save_account(acc)
+        st.success("账户已重置。")
+
+    last_trades = st.session_state.get("last_trades", [])
+    if do_trade:
+        if not detail:
+            st.warning("当前没有可交易的自选股数据, 请先在左侧刷新分析。")
+        else:
+            reg_lbl = (res.get("regime", {}) or {}).get("label", "")
+            last_trades = paper.rebalance(acc, detail, names=watchlist,
+                                          reason_regime=reg_lbl)
+            paper.save_account(acc)
+            st.session_state["acc"] = acc
+            st.session_state["last_trades"] = last_trades
+            if last_trades:
+                st.success(f"已执行 {len(last_trades)} 笔调仓。")
+            else:
+                st.info("今日信号未触发调仓, 维持原持仓。")
+
+    # ---- 账户概览
+    summ = paper.summary(acc, detail)
+    mc = st.columns(4)
+    mc[0].metric("总资产", f"${summ['total']:,.0f}",
+                 f"{summ['ret_pct']:+.1f}% 累计")
+    mc[1].metric("现金", f"${summ['cash']:,.0f}")
+    mc[2].metric("持仓市值", f"${summ['invested']:,.0f}")
+    mc[3].metric("持仓数", f"{summ['n_pos']} 只",
+                 f"{summ['n_trades']} 笔成交")
+
+    # ---- 操盘日志
+    if last_trades or acc.get("last_run"):
+        reg_lbl = (res.get("regime", {}) or {}).get("label", "")
+        fb = "、".join(f"{r['代码']}{r['盈亏%']:+.0f}%" for r in summ["rows"][:5])
+        creds = llm.get_credentials(api_key=llm_key, provider=locals().get("prov")) \
+            if use_llm else None
+        journal = llm.llm_journal(last_trades, summ, regime=reg_lbl,
+                                  factors_brief=fb, creds=creds) if use_llm \
+            else llm.rule_based_journal(last_trades, summ, regime=reg_lbl)
+        st.markdown("#### 📓 操盘日志")
+        st.markdown(journal)
+
+    # ---- 持仓表
+    if summ["rows"]:
+        st.markdown("#### 📊 当前持仓")
+        import pandas as _pd
+        dfp = _pd.DataFrame(summ["rows"])
+        st.dataframe(
+            dfp.style
+            .background_gradient(subset=["盈亏%"], cmap="RdYlGn_r", vmin=-30, vmax=30)
+            .format({"成本价": "{:.2f}", "现价": "{:.2f}", "市值": "{:,.0f}",
+                     "浮动盈亏": "{:,.0f}", "盈亏%": "{:+.1f}", "股数": "{:.2f}"}),
+            use_container_width=True, height=min(60 + 36 * len(dfp), 400))
+    else:
+        st.info("暂无持仓。点『▶ 执行今日交易』让 AI 交易员按信号建仓。")
+
+    # ---- 盈亏曲线
+    if len(acc.get("equity_curve", [])) >= 2:
+        import plotly.graph_objects as _go
+        ec = acc["equity_curve"]
+        fig = _go.Figure()
+        fig.add_trace(_go.Scatter(x=[p["date"] for p in ec],
+                                  y=[p["total"] for p in ec],
+                                  name="总资产", line=dict(color="#ef5350", width=2)))
+        fig.add_hline(y=acc.get("start_cash", 100000), line_dash="dash",
+                      line_color="#8e9199", annotation_text="起始资金")
+        fig.update_layout(template="plotly_dark", height=300,
+                          title="账户总资产曲线", margin=dict(t=40, b=10))
+        st.plotly_chart(fig, use_container_width=True)
+
+    # ---- 成交流水
+    if acc.get("trades"):
+        with st.expander(f"🧾 成交流水 (共 {len(acc['trades'])} 笔)", expanded=False):
+            import pandas as _pd
+            dft = _pd.DataFrame(acc["trades"][::-1])
+            dft = dft.rename(columns={"date": "时间", "code": "代码", "name": "名称",
+                                      "side": "方向", "shares": "股数", "price": "价格",
+                                      "amount": "金额", "pnl": "实现盈亏", "reason": "理由"})
+            st.dataframe(dft, use_container_width=True, height=320)
+
+    # ---- 备份/恢复
+    with st.expander("💾 备份 / 恢复账户", expanded=False):
+        import json as _json
+        st.download_button("⬇ 下载账户存档 (JSON)",
+                           data=_json.dumps(acc, ensure_ascii=False, indent=2),
+                           file_name="paper_account.json", mime="application/json")
+        up = st.file_uploader("⬆ 上传账户存档恢复", type=["json"], key="acc_up")
+        if up is not None:
+            try:
+                acc2 = _json.load(up)
+                st.session_state["acc"] = acc2
+                paper.save_account(acc2)
+                st.success("已恢复账户存档, 请重新运行查看。")
+            except Exception as _e:
+                st.error(f"存档解析失败: {_e}")
+
+    st.caption("⚠️ 纯模拟演示, 不接券商、不下真实订单, 未计交易成本/滑点。仅供研究, 非投资建议。")
 
 # ================================================================ TAB 3 选股池
 with tab3:
