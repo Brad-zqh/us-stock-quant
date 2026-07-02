@@ -1,5 +1,5 @@
 {
-  "version": "1.0.3",
-  "notes": "新增 AI 交易员模拟账户(自动调仓+盈亏曲线)、组合模拟盘、个股白话策略解读、默认深色主题。",
+  "version": "1.0.4",
+  "notes": "新增搜索个股『AI 研究员点评』(大模型)、AI 交易员每日自动运行+微信推送；沿用 AI 交易员模拟账户、组合模拟盘、白话策略解读、默认深色主题。",
   "downloadUrl": "https://brad-zqh.github.io/us-stock-quant/download.html"
 }
