@@ -184,3 +184,129 @@ def llm_journal(trades: list[dict], summ: dict, regime: str = "",
         return cleaned
     except Exception as e:
         return rule_based_journal(trades, summ, regime) + f"\n\n_(大模型调用失败，已用规则版：{e})_"
+
+
+# ---------------------------------------------------------------- 个股 AI 点评
+def _signal_word(score: float) -> str:
+    s = float(score or 0)
+    if s >= 70:
+        return "多因子共振、明显看多"
+    if s >= 58:
+        return "整体偏多、可逢低介入"
+    if s >= 45:
+        return "多空均衡、宜观望"
+    if s >= 35:
+        return "偏空、宜谨慎"
+    return "明显偏空、倾向回避"
+
+
+def _pos_neg_factors(factors: dict) -> tuple[list[str], list[str]]:
+    pos, neg = [], []
+    for name, val in (factors or {}).items():
+        try:
+            v = float(val)
+        except Exception:
+            continue
+        if v >= 65:
+            pos.append(str(name))
+        elif v <= 38:
+            neg.append(str(name))
+    return pos[:4], neg[:4]
+
+
+def rule_based_review(code: str, name: str, score: float, action: str,
+                      factors: dict, tech: list[str] | None = None,
+                      regime: str = "", earnings_soon: bool = False) -> str:
+    pos, neg = _pos_neg_factors(factors)
+    parts = [f"{name or code} 当前{_signal_word(score)}，量化信号为「{action}」。"]
+    if pos:
+        parts.append("主要支撑来自" + "、".join(pos) + "等因子偏强。")
+    if neg:
+        parts.append("需警惕" + "、".join(neg) + "等因子偏弱。")
+    if tech:
+        import re as _re
+        t0 = _re.sub(r"\s*[\d.]+\s*", "", tech[0]).strip("，。 ")
+        if t0:
+            parts.append(t0 + "。")
+    if regime:
+        parts.append(f"当前大盘环境为{regime}，顺势时系统更友好。")
+    if earnings_soon:
+        parts.append("临近财报，波动或加大，可等财报落地再决策。")
+    parts.append("具体买卖点与仓位请结合上方的评分、止损目标价与自身风险承受能力。")
+    return "".join(parts) + "\n\n仅供研究，非投资建议。"
+
+
+def llm_stock_review(code: str, name: str, score: float, action: str,
+                     factors: dict, tech: list[str] | None = None,
+                     regime: str = "", earnings_soon: bool = False,
+                     creds: dict | None = None, timeout: int = 30) -> str:
+    """搜索个股时的『AI 研究员点评』。只喂定性锚点, 去数字, 失败/跑偏回退规则版。"""
+    creds = creds or get_credentials()
+    if not creds.get("api_key"):
+        return rule_based_review(code, name, score, action, factors,
+                                 tech, regime, earnings_soon)
+    try:
+        import re
+        import requests
+        # 只喂"综合立场+趋势姿态+大盘+财报", 不喂任何因子强弱(DeepSeek 会强行加"然而"唱反调把结论翻转);
+        # 精确的因子归因与强弱在上方确定性的"策略解读"面板已给出。
+        stance = _signal_word(score)
+        facts = [f"这只股票是{name or code}，量化综合结论是{stance}，操作信号为{action}"]
+        if tech:
+            posture = ""
+            for x in tech:
+                if any(k in x for k in ("均线", "趋势", "排列", "通道")):
+                    posture = re.sub(r"[\d./]+", "", x).strip("。 ")
+                    break
+            if posture:
+                facts.append("技术形态方面" + posture)
+        if regime:
+            facts.append(f"当前大盘环境为{regime}")
+        if earnings_soon:
+            facts.append("该股临近财报，事件不确定性较高")
+        facts_txt = "；".join(facts)
+
+        sys_msg = (
+            "你是一位专业、克制的量化研究员，为用户搜索的这只股票写一段『研究点评』。"
+            "把用户给的要点改写成一段自然流畅的中文散文。硬性规则："
+            "输出必须是纯散文，一到两个自然段，130~200字；"
+            "绝对不要出现任何数字、百分比、价格、表格、竖线、井号、连字符列表或分点编号；"
+            "不得新增要点里没有的概念(具体因子、超买超卖、顶背离、目标价、点位等)；"
+            "最重要：必须与要点给出的『量化综合结论』方向完全一致——结论偏多就通篇偏多，"
+            "结论偏空就通篇偏空，严禁用『然而/但』把结论反转成相反方向；"
+            "语气专业中立、像卖方研究员口吻；讲清：当前是什么格局、该用什么思路参与、"
+            "结合大盘环境要注意什么、需要盯住哪些变化；"
+            "最后另起一行写：仅供研究，非投资建议。")
+        eg_user = ("要点：这只股票是英伟达，量化综合结论是整体偏多、可逢低介入，操作信号为买入；"
+                   "技术形态方面价格站上主要均线、多头排列；当前大盘环境为Risk-On进攻。"
+                   "请写成研究点评散文。")
+        eg_assistant = ("英伟达当前维持偏多格局，量化综合结论倾向逢低介入，价格稳居主要均线上方并呈多头排列，"
+                        "中期方向仍偏强，市场愿意给予其成长溢价。参与思路上宜顺势而为，逢回调分批布局、"
+                        "严格控制单票仓位，而非在情绪亢奋时追高。考虑到当前处于Risk-On进攻区间，"
+                        "系统对偏多信号更为友好，外部环境亦提供支撑。后续需盯住多头结构能否延续、"
+                        "以及大盘风险偏好是否维持，一旦环境转弱便应及时收缩仓位、落袋为安。\n"
+                        "仅供研究，非投资建议。")
+        user_msg = f"要点：{facts_txt}。请写成研究点评散文。"
+        r = requests.post(
+            f"{creds['base_url'].rstrip('/')}/chat/completions",
+            headers={"Authorization": f"Bearer {creds['api_key']}",
+                     "Content-Type": "application/json"},
+            json={"model": creds["model"],
+                  "messages": [{"role": "system", "content": sys_msg},
+                               {"role": "user", "content": eg_user},
+                               {"role": "assistant", "content": eg_assistant},
+                               {"role": "user", "content": user_msg}],
+                  "temperature": 0.35, "max_tokens": 420},
+            timeout=timeout)
+        r.raise_for_status()
+        raw = r.json()["choices"][0]["message"]["content"].strip()
+        cleaned = _clean_journal(raw, strip_numbers=True)
+        body = cleaned.replace("仅供研究，非投资建议。", "").strip()
+        if len(body) < 50 or "|" in raw or body.count("：") > 4:
+            return rule_based_review(code, name, score, action, factors,
+                                     tech, regime, earnings_soon)
+        return cleaned
+    except Exception as e:
+        return rule_based_review(code, name, score, action, factors,
+                                 tech, regime, earnings_soon) \
+            + f"\n\n_(大模型调用失败，已用规则版：{e})_"

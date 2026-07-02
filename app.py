@@ -111,6 +111,21 @@ def search_a_cached(q: str):
     return resolve.search_ashare(q)
 
 
+def _llm_creds_from_ui():
+    """统一获取大模型凭证: Streamlit Secrets(LLM_API_KEY/LLM_PROVIDER) 优先, 再退 env/config。"""
+    try:
+        key = st.secrets.get("LLM_API_KEY", "")
+        prov = st.secrets.get("LLM_PROVIDER", "deepseek")
+    except Exception:
+        key, prov = "", "deepseek"
+    key = key or st.session_state.get("llm_key", "")
+    prov = st.session_state.get("llm_prov", prov) or prov
+    if key:
+        return llm.get_credentials(api_key=key, provider=prov)
+    c = llm.get_credentials()
+    return c if c.get("api_key") else None
+
+
 if refresh:
     load.clear()
     load_screen.clear()
@@ -295,6 +310,33 @@ def render_detail(code: str, info: dict, currency: str = "$", name: str = ""):
             st.caption("以上为量化因子的自动归因解读, 仅供研究参考, 不构成投资建议。")
     except Exception as _e:
         st.caption(f"(策略解读生成失败: {_e})")
+
+    # ---- 🤖 AI 研究员点评 (大模型, 按需触发以控制成本)
+    _creds = _llm_creds_from_ui()
+    with st.expander("🤖 AI 研究员点评 — 让大模型综合评述这只股票", expanded=False):
+        if not _creds:
+            st.caption("未检测到大模型 Key。在「🤖 AI 交易员」标签页填入 API Key，"
+                       "或在 Streamlit Secrets 配置 LLM_API_KEY，即可启用大模型点评；"
+                       "当前可用免费规则版点评。")
+        rk = f"aireview_{code}"
+        cbtn1, cbtn2 = st.columns([1, 3])
+        gen = cbtn1.button("生成 AI 点评", key=f"btn_{rk}",
+                           help="调用大模型生成一段研究点评(约几分钱/次)")
+        if gen:
+            try:
+                ex_t = ex if isinstance(ex, dict) else {}
+            except Exception:
+                ex_t = {}
+            _earn = info.get("earnings") or {}
+            with st.spinner("AI 正在综合评述…"):
+                st.session_state[rk] = llm.llm_stock_review(
+                    code, name, info.get("score", 0), info.get("action", ""),
+                    info.get("factors", {}) or {}, tech=ex_t.get("技术", []),
+                    regime=(res.get("regime", {}) or {}).get("label", ""),
+                    earnings_soon=bool(_earn.get("soon")), creds=_creds)
+        if st.session_state.get(rk):
+            st.markdown(st.session_state[rk])
+            st.caption("大模型生成，可能存在偏差，仅供研究参考，不构成投资建议。")
 
     # 基本面 / 分析师 / 资金流 明细
     pd_detail = info.get("plus_detail", {})
@@ -562,6 +604,10 @@ with tab9:
             prov = st.selectbox("服务商", ["deepseek", "openai", "kimi", "qwen"], index=0)
             llm_key = st.text_input("API Key", type="password",
                                     help="仅本次会话使用, 不上传不保存") or _sec_key
+            # 存入会话, 供搜索页「AI 研究员点评」共用
+            st.session_state["llm_prov"] = prov
+            if llm_key:
+                st.session_state["llm_key"] = llm_key
             if _sec_key and not st.session_state.get("_shown_sec"):
                 st.caption("✅ 已从 Streamlit Secrets 读到 Key, 无需手填。")
             st.caption("DeepSeek 最便宜(几分钱/次): platform.deepseek.com 拿 sk-xxx。"
