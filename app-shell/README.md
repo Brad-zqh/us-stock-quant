@@ -52,6 +52,24 @@ python -m http.server 8777
 ## 🖥️ 桌面安装包（Tauri）
 见 [`tauri/README.md`](tauri/README.md)。需装 Rust 工具链，产物是很小的 `.dmg`/`.exe`。
 
+## 🤖 自动打包（GitHub Actions，无需本机装工具链）
+仓库已内置三个工作流，在 GitHub 仓库的 **Actions** 页点 “Run workflow” 即可云端出包，
+或打版本 tag 自动触发（`git tag v1.0.0 && git push origin v1.0.0`）：
+
+| 工作流 | 产物 | 说明 |
+|--------|------|------|
+| **Build Desktop App (Tauri)** | Windows `.msi/.exe` + macOS `.dmg/.app` | 跑完在该次 run 的 Artifacts 里下载 |
+| **Build Android APK** | `app-debug.apk` | 手机开“允许安装未知来源”即可直装 |
+| **Deploy PWA to Pages** | 在线网址 | 改 `web/` 后自动发布 |
+
+> **签名说明**：CI 出的桌面包/APK 未做代码签名 —— Windows 会有 SmartScreen 提示、
+> macOS 需“右键→打开”、安卓提示未知来源，均属正常，本人使用无碍。正式上架/分发
+> 再配签名证书。
+>
+> **iOS 无法这样直装**：苹果要求 App 必须用**苹果开发者账号($99/年)签名**才能装到 iPhone
+> 或上 App Store。所以 iOS 请按 `capacitor/README.md` 在 Mac + Xcode 里打包，或先用
+> **PWA“添加到主屏幕”**（iPhone 今天就能用，见上文）。
+
 ---
 
 ## 图标

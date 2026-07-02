@@ -12,6 +12,7 @@ from __future__ import annotations
 import functools
 
 import ashare
+import universe
 
 _UA = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                      "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36"}
@@ -21,8 +22,42 @@ _US_EXCH = {"NASDAQ": 0, "NYSE": 0, "NYSEArca": 1, "NYSE Arca": 1,
             "AMEX": 1, "NYSEAmerican": 1, "BATS": 2, "Cboe US": 2, "OTC": 5}
 
 
+def _has_cjk(s: str) -> bool:
+    return any("\u4e00" <= ch <= "\u9fff" for ch in (s or ""))
+
+
+@functools.lru_cache(maxsize=1)
+def _us_cn_map() -> dict:
+    """美股代码 -> 中文名。精选池(即时可靠) + akshare 东财美股全量(尽力补充)。"""
+    m = {}
+    # 1) 本地精选池 (快、稳, 覆盖主要美股)
+    try:
+        m.update(universe._flatten(universe.TECH_UNIVERSE))
+        m.update(universe._flatten(universe.US_SECTORS))
+    except Exception:
+        pass
+    # 2) akshare 东方财富美股全量中文名 (海外服务器可能慢/超时, 失败则忽略)
+    try:
+        import akshare as ak
+        df = ak.stock_us_spot_em()
+        for _, r in df.iterrows():
+            sym = str(r.get("代码", "")).split(".")[-1].upper()
+            cn = str(r.get("名称", "")).strip()
+            if sym and cn and sym not in m:
+                m[sym] = cn
+    except Exception:
+        pass
+    return m
+
+
+def us_cn_name(symbol: str) -> str:
+    """取美股中文名; 无中文名(或只有英文别名)时返回空串。"""
+    cn = _us_cn_map().get((symbol or "").upper(), "")
+    return cn if _has_cjk(cn) else ""
+
+
 def search_us(query: str, limit: int = 8) -> list[tuple]:
-    """返回 [(symbol, name, exchange, quoteType), ...]。支持代码或英文名。"""
+    """返回 [(symbol, name_en, name_cn, exchange, quoteType), ...]。支持代码或英文名。"""
     q = (query or "").strip()
     if not q:
         return []
@@ -36,7 +71,8 @@ def search_us(query: str, limit: int = 8) -> list[tuple]:
     except Exception:
         # 网络失败时: 若输入本身像代码, 直接当代码用
         if q.replace(".", "").replace("-", "").isalnum() and len(q) <= 6:
-            return [(q.upper(), q.upper(), "", "EQUITY")]
+            sym = q.upper()
+            return [(sym, sym, us_cn_name(sym), "", "EQUITY")]
         return []
 
     out = []
@@ -49,10 +85,10 @@ def search_us(query: str, limit: int = 8) -> list[tuple]:
             continue
         name = it.get("shortname") or it.get("longname") or sym
         exch = it.get("exchDisp") or it.get("exchange") or ""
-        out.append((sym, name, exch, qt))
+        out.append((sym, name, us_cn_name(sym), exch, qt))
 
     # 美国上市优先, 其次保持原有相关性顺序
-    out.sort(key=lambda x: _US_EXCH.get(x[2], 3))
+    out.sort(key=lambda x: _US_EXCH.get(x[3], 3))
     return out[:limit]
 
 

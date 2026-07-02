@@ -339,10 +339,13 @@ with tab2:
         if not cands:
             sc1.warning("未找到匹配的美股，可直接输入代码 (如 NVDA)。")
         else:
-            labels = [f"{s} · {n}" + (f" ({e})" if e else "") for s, n, e, qt in cands]
+            labels = [f"{s} · {n}" + (f" · {cn}" if cn else "") + (f"  ({e})" if e else "")
+                      for s, n, cn, e, qt in cands]
             i = sc1.selectbox("匹配结果", range(len(cands)),
                               format_func=lambda i: labels[i], key="us_pick")
-            target = (cands[i][0], cands[i][1], "$", use_news)
+            s, n, cn, e, qt = cands[i]
+            disp = f"{n} · {cn}" if cn else n
+            target = (s, disp, "$", use_news)
     elif a_q:
         cands = search_a_cached(a_q)
         if not cands:
