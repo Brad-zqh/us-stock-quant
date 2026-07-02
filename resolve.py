@@ -134,6 +134,9 @@ def search_ashare(query: str, limit: int = 12) -> list[tuple]:
                 res.insert(0, (code, name))
             elif digits in code:
                 res.append((code, name))
+        # 兜底: 只要是合法 6 位代码, 即便不在(可能超时的)名单里也直接可分析
+        if exact and not any(c == exact for c, _ in res):
+            res.insert(0, (exact, ashare.A_NAME.get(exact, "")))
     else:       # 按中文名模糊
         ql = q.lower()
         starts, contains = [], []
