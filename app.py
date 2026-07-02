@@ -38,11 +38,19 @@ use_fund = st.sidebar.checkbox("启用基本面/分析师/资金流 📊", value
 refresh = st.sidebar.button("🔄 刷新分析", type="primary", use_container_width=True)
 
 # 解析自选股
+# 常见"名字/别名 -> 正确代码"映射 (避免把公司名当成代码导致取不到行情被丢弃)
+_TICKER_ALIAS = {
+    "SPACEX": "SPCX", "STARLINK": "SPCX", "星舰": "SPCX", "星链": "SPCX",
+    "马斯克": "SPCX", "SPACE-X": "SPCX", "SPACEX星舰": "SPCX",
+}
 watchlist = {}
 for line in codes_text.strip().splitlines():
     parts = line.strip().split(None, 1)
     if parts:
-        watchlist[parts[0].upper()] = parts[1] if len(parts) > 1 else parts[0]
+        raw = parts[0]
+        code = _TICKER_ALIAS.get(raw.upper(), raw.upper())
+        name = parts[1] if len(parts) > 1 else (raw if code == raw.upper() else raw)
+        watchlist[code] = name
 
 
 @st.cache_data(ttl=900, show_spinner="📡 拉取行情并计算中…")
@@ -115,6 +123,14 @@ res = load(watchlist, period, use_news, use_fund)
 table, detail = res["table"], res["detail"]
 
 st.title("📈 皓哥量化")
+
+# 提示: 有哪些自选股代码取不到行情被跳过 (未上市/代码错误/退市)
+_missing = [f"{c}" + (f"({watchlist[c]})" if watchlist.get(c) and watchlist[c] != c else "")
+            for c in watchlist if c not in detail]
+if _missing:
+    st.warning("⚠️ 以下自选股取不到行情已跳过(可能未上市/代码写错/已退市): "
+               + "、".join(_missing)
+               + "。改成正确的**交易代码**即可,如 SpaceX→`SPCX`。")
 
 # ---------------------------------------------------------------- 顶部下载 App 入口
 _DL_PAGE = "https://brad-zqh.github.io/us-stock-quant/download.html"
