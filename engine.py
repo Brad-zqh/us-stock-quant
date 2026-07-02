@@ -43,6 +43,33 @@ def _news_provider(ticker: str):
         return news_mod
     return None
 
+
+try:
+    import futu_news                     # 富途多市场新闻源 (免OpenD/免key, 云端可用)
+    _HAS_FUTU_NEWS = True
+except Exception:
+    _HAS_FUTU_NEWS = False
+
+
+def _fetch_sentiment(t: str, name: str, use_news: bool) -> tuple[float, list]:
+    """新闻情绪: 优先富途多市场新闻源, 空则回退 yfinance/akshare。"""
+    if not use_news:
+        return 50.0, []
+    if _HAS_FUTU_NEWS and futu_news.enabled():
+        try:
+            f, items = futu_news.sentiment_factor(t, name)
+            if items:
+                return f, items
+        except Exception:
+            pass
+    prov = _news_provider(t)
+    if prov is not None:
+        try:
+            return prov.sentiment_factor(t)
+        except Exception:
+            return 50.0, []
+    return 50.0, []
+
 try:
     import factors_plus              # 基本面/分析师/资金流 (可选)
     _HAS_PLUS = True
@@ -408,16 +435,8 @@ def _analyze_one(t, name, d, bench, use_news, use_fundamentals, use_earnings,
     insufficient = n_bars < 60          # 不足以算 SMA50, 视为次新股
     factors = score_factors(d, bench)
 
-    # 新闻情绪因子 (美股英文 / A股中文, 按代码自动选源)
-    news_items = []
-    provider = _news_provider(t)
-    if use_news and provider is not None:
-        try:
-            sent, news_items = provider.sentiment_factor(t)
-        except Exception:
-            sent = 50.0
-    else:
-        sent = 50.0
+    # 新闻情绪因子 (美股英文 / A股中文, 优先富途多市场新闻源, 回退 yfinance/akshare)
+    sent, news_items = _fetch_sentiment(t, name, use_news)
     factors["新闻情绪"] = sent
 
     # 进阶因子: 基本面 / 分析师 / 资金流
