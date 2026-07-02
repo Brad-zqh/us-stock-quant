@@ -19,6 +19,7 @@ import universe
 import ashare
 import resolve
 import funds
+import explain
 
 st.set_page_config(page_title="皓哥量化", layout="wide", page_icon="📈")
 
@@ -245,6 +246,37 @@ def render_detail(code: str, info: dict, currency: str = "$", name: str = ""):
                      "财报前后波动剧烈, 谨慎追高, 可等财报落地再决策。")
         else:
             st.caption(f"📅 下次财报: {earn['date']} (还有 {earn['days']} 天)")
+
+    # ---- 📝 策略解读 (白话归因)
+    try:
+        ex = explain.build_explanation(info, cur=cur, reg=res.get("regime"))
+        with st.expander("📝 策略解读 — 为什么给这个信号、怎么操作", expanded=True):
+            st.markdown(f"**🎯 结论**　{ex['结论']}")
+            cL, cR = st.columns(2)
+            with cL:
+                if ex["利多"]:
+                    st.markdown("**✅ 支撑看多的因素**")
+                    for t in ex["利多"]:
+                        st.markdown(f"- {t}")
+                else:
+                    st.markdown("**✅ 支撑看多的因素**\n\n- 暂无明显强项因子")
+            with cR:
+                if ex["利空"]:
+                    st.markdown("**⚠️ 需要警惕的因素**")
+                    for t in ex["利空"]:
+                        st.markdown(f"- {t}")
+                else:
+                    st.markdown("**⚠️ 需要警惕的因素**\n\n- 暂无明显弱项因子")
+            if ex["技术"]:
+                st.markdown("**📈 技术位置**")
+                for t in ex["技术"]:
+                    st.markdown(f"- {t}")
+            st.markdown(f"**🛡️ {ex['风控']}**")
+            for t in ex["提示"]:
+                st.markdown(f"> {t}")
+            st.caption("以上为量化因子的自动归因解读, 仅供研究参考, 不构成投资建议。")
+    except Exception as _e:
+        st.caption(f"(策略解读生成失败: {_e})")
 
     # 基本面 / 分析师 / 资金流 明细
     pd_detail = info.get("plus_detail", {})

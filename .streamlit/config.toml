@@ -1,0 +1,11 @@
+# 皓哥量化 — Streamlit 全局配置
+# 强制默认深色主题 (不跟随浏览器/系统的浅色偏好)
+[theme]
+base = "dark"
+primaryColor = "#ef5350"
+backgroundColor = "#0e1117"
+secondaryBackgroundColor = "#1c1f26"
+textColor = "#fafafa"
+
+[client]
+toolbarMode = "minimal"
