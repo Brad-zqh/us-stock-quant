@@ -13,6 +13,7 @@ __pycache__/
 .DS_Store
 .ipynb_checkpoints/
 *.csv
+!a_stocks.csv
 
 .quote_cache/
 calibrate_report.txt

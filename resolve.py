@@ -93,8 +93,27 @@ def search_us(query: str, limit: int = 8) -> list[tuple]:
 
 
 @functools.lru_cache(maxsize=1)
+def _a_snapshot() -> tuple:
+    """打包在仓库里的全量 A股 代码-名称快照。云端 akshare 超时也能搜到全部 A股。"""
+    import os
+    path = os.path.join(os.path.dirname(__file__), "a_stocks.csv")
+    rows = []
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            next(f, None)  # 跳过表头
+            for line in f:
+                parts = line.rstrip("\n").split(",", 1)
+                if len(parts) == 2 and parts[0]:
+                    rows.append((parts[0].strip(), parts[1].strip()))
+    except Exception:
+        pass
+    return tuple(rows)
+
+
+@functools.lru_cache(maxsize=1)
 def _a_list() -> tuple:
-    """全量 A股 (代码带后缀, 名称)。akshare 优先, 失败回退龙头名单。缓存于进程生命周期。"""
+    """全量 A股 (代码带后缀, 名称)。
+       akshare 优先(可含最新上市), 再合并仓库快照(云端兜底), 最后并入龙头名单。缓存于进程生命周期。"""
     rows = []
     seen = set()
     try:
@@ -110,7 +129,12 @@ def _a_list() -> tuple:
                 seen.add(code)
     except Exception:
         pass
-    # 合并龙头名单 (确保 akshare 挂掉时仍能搜到主要股)
+    # 合并仓库内全量快照 (akshare 在云端超时时, 这里保证仍能搜到几乎所有 A股)
+    for code, name in _a_snapshot():
+        if code and code not in seen:
+            rows.append((code, name))
+            seen.add(code)
+    # 合并龙头名单 (最后兜底)
     for code, name in ashare.A_NAME.items():
         if code not in seen:
             rows.append((code, name))
