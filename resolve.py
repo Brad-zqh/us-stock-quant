@@ -113,9 +113,16 @@ def _a_snapshot() -> tuple:
 @functools.lru_cache(maxsize=1)
 def _a_list() -> tuple:
     """全量 A股 (代码带后缀, 名称)。
-       akshare 优先(可含最新上市), 再合并仓库快照(云端兜底), 最后并入龙头名单。缓存于进程生命周期。"""
+       先用仓库内快照(即时可靠, 云端必可用), 再用 akshare 补最新上市, 最后并入龙头名单。
+       缓存于进程生命周期。"""
     rows = []
     seen = set()
+    # 1) 仓库内全量快照优先: 即使云端 akshare 超时/被墙, 也能立刻搜到几乎所有 A股
+    for code, name in _a_snapshot():
+        if code and code not in seen:
+            rows.append((code, name))
+            seen.add(code)
+    # 2) akshare 补充最新上市/改名 (云端失败则忽略, 不影响上面的快照结果)
     try:
         import akshare as ak
         df = ak.stock_info_a_code_name()  # 列: code, name
@@ -129,12 +136,7 @@ def _a_list() -> tuple:
                 seen.add(code)
     except Exception:
         pass
-    # 合并仓库内全量快照 (akshare 在云端超时时, 这里保证仍能搜到几乎所有 A股)
-    for code, name in _a_snapshot():
-        if code and code not in seen:
-            rows.append((code, name))
-            seen.add(code)
-    # 合并龙头名单 (最后兜底)
+    # 3) 合并龙头名单 (最后兜底)
     for code, name in ashare.A_NAME.items():
         if code not in seen:
             rows.append((code, name))

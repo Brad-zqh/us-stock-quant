@@ -578,7 +578,7 @@ with tab2:
     watch_pick = sc3.selectbox(
         "📋 或从自选股选择", options=[""] + list(detail.keys()),
         format_func=lambda t: "（选择自选股…）" if t == "" else f"{t}  {watchlist.get(t, '')}")
-    a_news_flag = sc2.checkbox("A股中文新闻情绪 (akshare, 可能较慢)", value=False,
+    a_news_flag = sc2.checkbox("A股新闻情绪 📰 (富途新闻源)", value=True,
                                key="a_news_detail")
 
     # 解析目标: (代码, 名称, 货币符号, 是否用新闻)
