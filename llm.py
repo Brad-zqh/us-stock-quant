@@ -268,9 +268,68 @@ def _fmt_when(w) -> str:
         return ""
 
 
-def rule_based_news_digest(name: str, items: list[dict]) -> str:
+_TRANS_CACHE: dict[str, str] = {}
+
+
+def _has_cjk(s: str) -> bool:
+    return any("\u4e00" <= ch <= "\u9fff" for ch in (s or ""))
+
+
+def translate_to_zh(text: str, timeout: int = 6) -> str:
+    """把英文文本翻译成简体中文(免费接口, 无需 key)。
+       已是中文/为空/失败 -> 原样返回。带进程内缓存。
+       翻译源: Google(云端最佳) -> MyMemory(备用, 覆盖更广)。"""
+    t = (text or "").strip()
+    if not t or _has_cjk(t):
+        return t
+    if t in _TRANS_CACHE:
+        return _TRANS_CACHE[t]
+    import requests
+    # 1) Google 非官方接口 (Streamlit 云端可用)
+    try:
+        r = requests.get(
+            "https://translate.googleapis.com/translate_a/single",
+            params={"client": "gtx", "sl": "auto", "tl": "zh-CN",
+                    "dt": "t", "q": t},
+            headers={"User-Agent": "Mozilla/5.0"}, timeout=timeout)
+        r.raise_for_status()
+        seg = r.json()[0]
+        zh = "".join(s[0] for s in seg if s and s[0]).strip()
+        if zh and _has_cjk(zh):
+            _TRANS_CACHE[t] = zh
+            return zh
+    except Exception:
+        pass
+    # 2) MyMemory 免费接口 (备用)
+    try:
+        r = requests.get(
+            "https://api.mymemory.translated.net/get",
+            params={"q": t[:480], "langpair": "en|zh-CN"}, timeout=timeout)
+        r.raise_for_status()
+        zh = str(r.json().get("responseData", {}).get("translatedText", "")).strip()
+        if zh and _has_cjk(zh) and "MYMEMORY WARNING" not in zh.upper():
+            _TRANS_CACHE[t] = zh
+            return zh
+    except Exception:
+        pass
+    return t
+
+
+def _bilingual_line(i: dict, translate: bool) -> str:
+    """一条新闻 -> 中英对照的 markdown 列表项(中文在上, 英文原文在下)。"""
+    d = _fmt_when(i.get("when"))
+    en = str(i.get("title", "")).strip()
+    if not translate or _has_cjk(en):
+        return f"- {d} {en}"
+    zh = translate_to_zh(en)
+    if zh and zh != en:
+        return f"- {d} {zh}  \n  _原文: {en}_"
+    return f"- {d} {en}"
+
+
+def rule_based_news_digest(name: str, items: list[dict], translate: bool = True) -> str:
     """无大模型时的规则版利好/利空速览: 按每条新闻的情绪分分桶, 各挑最多三条。
-       美股新闻多为英文, 无大模型时无法翻译, 原样展示标题。"""
+       美股新闻多为英文, 默认用免费翻译接口补上中文, 做成中英对照。"""
     if not items:
         return "近期暂无可用新闻。"
     scored = [(float(i.get("sentiment", 0) or 0), i) for i in items]
@@ -279,16 +338,16 @@ def rule_based_news_digest(name: str, items: list[dict]) -> str:
     lines = ["**🟢 利好**"]
     if pos:
         for _, i in pos[:3]:
-            lines.append(f"- {_fmt_when(i.get('when'))} {i['title']}")
+            lines.append(_bilingual_line(i, translate))
     else:
         lines.append("- 暂无明显利好")
     lines.append("**🔴 利空**")
     if neg:
         for _, i in neg[:3]:
-            lines.append(f"- {_fmt_when(i.get('when'))} {i['title']}")
+            lines.append(_bilingual_line(i, translate))
     else:
         lines.append("- 暂无明显利空")
-    lines.append("\n_基于新闻标题情绪自动归类；填入大模型 Key 可获得中文翻译与摘要。仅供研究，非投资建议。_")
+    lines.append("\n_基于新闻标题情绪自动归类，中文为机器翻译；填入大模型 Key 可获得更准的中文摘要。仅供研究，非投资建议。_")
     return "\n\n".join(lines)
 
 
