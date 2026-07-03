@@ -3,7 +3,10 @@
   "appName": "皓量化",
   "webDir": "www",
   "server": {
+    "url": "https://us-stock-quant-txpjva2xepffh9h2peiaup.streamlit.app/?embed=true",
     "androidScheme": "https",
-    "iosScheme": "https"
+    "iosScheme": "https",
+    "cleartext": false,
+    "allowNavigation": ["*.streamlit.app"]
   }
 }
