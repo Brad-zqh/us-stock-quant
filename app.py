@@ -525,14 +525,37 @@ def render_detail(code: str, info: dict, currency: str = "$", name: str = ""):
     if not news_items:
         st.caption("暂无新闻数据 (或已关闭新闻因子)。")
     else:
-        for it in news_items:
-            sent = it["sentiment"]
-            tag = "🟢 利好" if sent > 0.1 else ("🔴 利空" if sent < -0.1 else "⚪ 中性")
-            when = it["when"].strftime("%Y-%m-%d") if it["when"] else "—"
-            src = f" · {it['source']}" if it.get("source") else ""
-            link = it.get("link") or ""
-            title = f"[{it['title']}]({link})" if link else it["title"]
-            st.markdown(f"{tag} `{sent:+.2f}`　**{when}**{src}　{title}")
+        # 利好/利空速览 (有 Key 用大模型总结, 否则规则版按情绪分桶)
+        dk = f"newsdigest_{code}"
+        _creds_d = _llm_creds_from_ui()
+        dc1, dc2 = st.columns([1, 2])
+        gen_d = dc1.button("🧠 生成利好/利空速览", key=f"btn_{dk}")
+        auto_d = dc2.checkbox("切换股票自动生成", key=f"auto_{dk}", value=False)
+        need_d = gen_d or (auto_d and st.session_state.get(dk + "_for") != code)
+        if need_d:
+            try:
+                if not hasattr(llm, "llm_news_digest"):
+                    import importlib
+                    importlib.reload(llm)
+                with st.spinner("正在总结最新利好与利空…"):
+                    st.session_state[dk] = llm.llm_news_digest(
+                        name, news_items, creds=_creds_d)
+                    st.session_state[dk + "_for"] = code
+            except Exception as _e:
+                st.session_state[dk] = f"(速览生成失败: {_e})"
+                st.session_state[dk + "_for"] = code
+        if st.session_state.get(dk):
+            st.info(st.session_state[dk])
+
+        with st.expander("展开逐条新闻", expanded=True):
+            for it in news_items:
+                sent = it["sentiment"]
+                tag = "🟢 利好" if sent > 0.1 else ("🔴 利空" if sent < -0.1 else "⚪ 中性")
+                when = it["when"].strftime("%Y-%m-%d") if it["when"] else "—"
+                src = f" · {it['source']}" if it.get("source") else ""
+                link = it.get("link") or ""
+                title = f"[{it['title']}]({link})" if link else it["title"]
+                st.markdown(f"{tag} `{sent:+.2f}`　**{when}**{src}　{title}")
 
     if info.get("insufficient"):
         st.warning(f"⚠️ {code} 上市仅 {info['n_bars']} 个交易日, 技术指标(均线/MACD/RSI)"
