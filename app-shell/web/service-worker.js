@@ -1,7 +1,7 @@
 // 极简 Service Worker —— 让应用可“安装到主屏幕/桌面”。
 // 外壳(HTML/JS)走"网络优先", 保证每次打开都能拿到最新外壳; 断网时回退缓存。
 // 行情内容来自云端 iframe(Streamlit)，属于跨域实时数据，始终直连网络。
-const CACHE = "quant-shell-v2";
+const CACHE = "quant-shell-v3";
 const SHELL = [
   "./",
   "./index.html",

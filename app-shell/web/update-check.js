@@ -30,31 +30,55 @@
     setTimeout(function () { t.remove(); }, 2700);
   }
 
+  // 在右下角"⟳"按钮上加一个小红点, 表示有新版可更新 (不打扰, 想更新时点按钮即可)
+  function markFabDot() {
+    var fab = document.getElementById("hg-upd-fab");
+    if (!fab || document.getElementById("hg-upd-dot")) return;
+    var dot = document.createElement("span");
+    dot.id = "hg-upd-dot";
+    dot.style.cssText =
+      "position:absolute;top:2px;right:2px;width:10px;height:10px;border-radius:50%;" +
+      "background:#ef5350;border:2px solid #0e1117;box-sizing:border-box";
+    fab.style.position = "fixed";
+    fab.appendChild(dot);
+  }
+
+  // 低调提示: 右下角"⟳"按钮上方的小胶囊, 几秒后自动消失; 想更新点它或点"⟳"按钮
   function banner(v, notes, url) {
-    if (document.getElementById("hg-upd-banner")) return;
-    var bar = document.createElement("div");
-    bar.id = "hg-upd-banner";
-    bar.style.cssText =
-      "position:fixed;left:0;right:0;bottom:0;z-index:99999;background:#ef5350;color:#fff;" +
-      "font:14px -apple-system,'PingFang SC','Microsoft YaHei',sans-serif;padding:10px 14px;" +
-      "display:flex;align-items:center;gap:10px;box-shadow:0 -2px 10px rgba(0,0,0,.35)";
+    markFabDot();
+    if (document.getElementById("hg-upd-chip")) return;
+    var chip = document.createElement("div");
+    chip.id = "hg-upd-chip";
+    chip.style.cssText =
+      "position:fixed;right:14px;bottom:64px;z-index:99999;max-width:230px;" +
+      "background:rgba(27,36,48,.96);color:#e8eaed;border:1px solid #33404f;border-radius:12px;" +
+      "font:12px -apple-system,'PingFang SC','Microsoft YaHei',sans-serif;padding:8px 10px;" +
+      "display:flex;align-items:center;gap:8px;box-shadow:0 6px 20px rgba(0,0,0,.4);" +
+      "opacity:0;transition:opacity .3s";
     var msg = document.createElement("div");
-    msg.style.cssText = "flex:1;line-height:1.4";
-    msg.innerHTML = "🎉 发现新版本 <b>v" + v + "</b>" +
-      (notes ? "<span style='opacity:.85'> · " + notes + "</span>" : "");
+    msg.style.cssText = "flex:1;line-height:1.35";
+    msg.innerHTML = "有新版 <b>v" + v + "</b>";
     var go = document.createElement("a");
     go.href = url; go.target = "_blank"; go.rel = "noopener";
     go.textContent = "下载";
     go.style.cssText =
-      "background:#fff;color:#ef5350;font-weight:700;text-decoration:none;" +
-      "padding:6px 14px;border-radius:8px;white-space:nowrap";
+      "background:#2c3a4b;color:#fff;font-weight:600;text-decoration:none;" +
+      "padding:4px 10px;border-radius:8px;white-space:nowrap;font-size:12px";
     var x = document.createElement("button");
     x.textContent = "✕";
+    x.title = "关闭";
     x.style.cssText =
-      "background:transparent;border:0;color:#fff;font-size:16px;cursor:pointer;padding:4px 6px";
-    x.onclick = function () { bar.remove(); };
-    bar.appendChild(msg); bar.appendChild(go); bar.appendChild(x);
-    document.body.appendChild(bar);
+      "background:transparent;border:0;color:#9aa0aa;font-size:13px;cursor:pointer;padding:2px 4px";
+    x.onclick = function () { chip.remove(); };
+    chip.appendChild(msg); chip.appendChild(go); chip.appendChild(x);
+    document.body.appendChild(chip);
+    requestAnimationFrame(function () { chip.style.opacity = "1"; });
+    // 6 秒后自动隐去 (红点仍在, 随时可从"⟳"按钮再下载)
+    setTimeout(function () {
+      if (!chip.parentNode) return;
+      chip.style.opacity = "0";
+      setTimeout(function () { chip.remove(); }, 350);
+    }, 6000);
   }
 
   // 强制刷新: 清 Service Worker 缓存并重载, 让 App 外壳/PWA 立即取最新
@@ -99,6 +123,8 @@
 
   // 右下角面板
   function openPanel() {
+    var dot = document.getElementById("hg-upd-dot");
+    if (dot) dot.remove();
     var old = document.getElementById("hg-upd-panel");
     if (old) { old.remove(); return; }
     var box = document.createElement("div");
