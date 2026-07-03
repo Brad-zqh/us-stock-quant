@@ -1,0 +1,36 @@
+name: Generate Updater Key (one-off)
+
+# 一次性工作流: 生成 Tauri 更新签名密钥。用完即删。
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  gen:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Generate signing keypair
+        env:
+          KEY_PW: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          npx --yes @tauri-apps/cli@2 signer generate -w "$RUNNER_TEMP/updater.key" --password "$KEY_PW" --ci
+          echo "----- PUBLIC KEY (safe to expose) -----"
+          cat "$RUNNER_TEMP/updater.key.pub"
+          echo ""
+          echo "----- END PUBLIC KEY -----"
+
+      - name: Upload key artifact (encrypted private + public, 1 day)
+        uses: actions/upload-artifact@v4
+        with:
+          name: updater-key
+          path: |
+            ${{ runner.temp }}/updater.key
+            ${{ runner.temp }}/updater.key.pub
+          retention-days: 1
