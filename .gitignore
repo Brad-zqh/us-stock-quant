@@ -8,6 +8,8 @@ paper_account.json
 !state/paper_account_cn.json
 users.json
 orders.json
+futu_loop.log
+state/futu_loop_state.json
 __pycache__/
 *.pyc
 .DS_Store
