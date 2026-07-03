@@ -9,6 +9,7 @@ paper_account.json
 users.json
 orders.json
 futu_loop.log
+futu_loop.stdout.log
 state/futu_loop_state.json
 __pycache__/
 *.pyc
