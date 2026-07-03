@@ -147,6 +147,22 @@ def search_a_cached(q: str):
     return resolve.search_ashare(q)
 
 
+@st.cache_data(ttl=86400, show_spinner=False)
+def translate_titles_cached(titles: tuple) -> dict:
+    """把一批英文新闻标题批量翻成简体中文 (免费接口 + 进程缓存)。
+       已是中文/翻译失败 -> 原文。返回 {原文: 中文}。"""
+    out = {}
+    for t in titles:
+        t = (t or "").strip()
+        if not t:
+            continue
+        try:
+            out[t] = llm.translate_to_zh(t)
+        except Exception:
+            out[t] = t
+    return out
+
+
 def _llm_creds_from_ui():
     """统一获取大模型凭证: Streamlit Secrets(LLM_API_KEY/LLM_PROVIDER) 优先, 再退 env/config。"""
     try:
@@ -550,6 +566,16 @@ def render_detail(code: str, info: dict, currency: str = "$", name: str = ""):
         st.caption("暂无新闻数据 (或已关闭新闻因子)。")
     else:
         st.caption("💡 想看几句话总结的利好/利空，见本页最上方「利好/利空速览」。")
+        bi = st.checkbox("🈶 中英对照 (中文译文 + 英文原文)", value=True,
+                         key=f"binews_{code}",
+                         help="A股/美股新闻源多为英文标题，勾选后用免费翻译补上中文。")
+        trans = {}
+        if bi:
+            _titles = tuple(dict.fromkeys(
+                str(it.get("title", "")).strip() for it in news_items
+                if str(it.get("title", "")).strip()))
+            with st.spinner("正在翻译新闻标题…"):
+                trans = translate_titles_cached(_titles)
         with st.expander("展开逐条新闻", expanded=True):
             for it in news_items:
                 sent = it["sentiment"]
@@ -557,8 +583,13 @@ def render_detail(code: str, info: dict, currency: str = "$", name: str = ""):
                 when = it["when"].strftime("%Y-%m-%d") if it["when"] else "—"
                 src = f" · {it['source']}" if it.get("source") else ""
                 link = it.get("link") or ""
-                title = f"[{it['title']}]({link})" if link else it["title"]
+                en = it["title"]
+                zh = trans.get(en.strip(), "") if bi else ""
+                show = zh if (zh and zh != en) else en
+                title = f"[{show}]({link})" if link else show
                 st.markdown(f"{tag} `{sent:+.2f}`　**{when}**{src}　{title}")
+                if zh and zh != en:
+                    st.caption(f"　　🔠 原文: {en}")
 
     if info.get("insufficient"):
         st.warning(f"⚠️ {code} 上市仅 {info['n_bars']} 个交易日, 技术指标(均线/MACD/RSI)"
