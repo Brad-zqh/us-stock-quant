@@ -2,7 +2,7 @@
   "name": "stockquant-desktop",
   "version": "1.0.0",
   "private": true,
-  "description": "皓哥量化 —— Mac / Windows 桌面壳 (Tauri v2, 加载云端 Streamlit)",
+  "description": "皓量化 (Brad Quant) —— Mac / Windows 桌面壳 (Tauri v2, 加载云端 Streamlit)",
   "scripts": {
     "dev": "tauri dev",
     "build": "tauri build",

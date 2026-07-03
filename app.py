@@ -27,7 +27,7 @@ import auth
 import userstore
 import orderstore
 
-st.set_page_config(page_title="皓哥量化", layout="wide", page_icon="📈")
+st.set_page_config(page_title="皓量化", layout="wide", page_icon="📈")
 
 # 多用户登录门 (未启用多用户时返回 None, 保持单用户模式; 未登录会在此停止渲染)
 CURRENT_USER = auth.login_gate()
@@ -191,7 +191,7 @@ if refresh:
 res = load(watchlist, period, use_news, use_fund)
 table, detail = res["table"], res["detail"]
 
-st.title("📈 皓哥量化")
+st.title("📈 皓量化")
 
 # 提示: 有哪些自选股代码取不到行情被跳过 (未上市/代码错误/退市)
 _missing = [f"{c}" + (f"({watchlist[c]})" if watchlist.get(c) and watchlist[c] != c else "")
@@ -412,8 +412,8 @@ def render_detail(code: str, info: dict, currency: str = "$", name: str = ""):
     except Exception as _e:
         st.caption(f"(策略解读生成失败: {_e})")
 
-    # ---- 🤖 AI 研究员点评 (大模型, 按需触发以控制成本)
-    with st.expander("🤖 AI 研究员点评 — 让大模型综合评述这只股票", expanded=False):
+    # ---- 🤖 AI 研究员点评 (大模型, 打开即自动生成, 每股缓存一次以控成本)
+    with st.expander("🤖 AI 研究员点评 — DeepSeek 大模型综合评述这只股票", expanded=True):
         # 就地填 Key: 本面板输入 > AI交易员页/Secrets
         try:
             _sec_k = st.secrets.get("LLM_API_KEY", "")
@@ -444,11 +444,10 @@ def render_detail(code: str, info: dict, currency: str = "$", name: str = ""):
             st.caption("ℹ️ 未填 Key，将使用**免费规则版**点评。填入上方 Key 即可启用大模型版。")
 
         rk = f"aireview_{code}"
-        bc1, bc2 = st.columns([1, 2])
-        gen = bc1.button("生成 AI 点评", key=f"btn_{rk}")
-        auto = bc2.checkbox("自动生成 (切换到这只股票就自动出点评)",
-                            key=f"auto_{rk}", value=False)
-        need = gen or (auto and st.session_state.get(rk + "_for") != code)
+        # 打开个股详情即自动生成 (每只股票只生成一次并缓存; 切走再切回不重复计费)
+        need = st.session_state.get(rk + "_for") != code
+        if st.button("🔄 重新生成 AI 点评", key=f"btn_{rk}"):
+            need = True
         if need:
             try:
                 ex_t = ex if isinstance(ex, dict) else {}

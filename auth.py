@@ -39,7 +39,7 @@ def logout() -> None:
 
 
 def _render_login_form() -> None:
-    st.markdown("## 📈 皓哥量化 · 登录")
+    st.markdown("## 📈 皓量化 · 登录")
     st.caption("多因子量化分析 · 美股 / A股。请登录后使用；新用户凭邀请码注册。")
 
     tab_login, tab_reg = st.tabs(["🔑 登录", "🆕 注册"])

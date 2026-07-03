@@ -2,7 +2,7 @@
   "name": "stockquant-mobile",
   "version": "1.0.0",
   "private": true,
-  "description": "皓哥量化 —— iOS / Android 外壳 (Capacitor, 加载云端 Streamlit)",
+  "description": "皓量化 (Brad Quant) —— iOS / Android 外壳 (Capacitor, 加载云端 Streamlit)",
   "scripts": {
     "sync": "cap sync",
     "add:ios": "cap add ios",

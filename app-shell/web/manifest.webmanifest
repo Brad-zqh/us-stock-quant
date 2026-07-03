@@ -1,6 +1,6 @@
 {
-  "name": "皓哥量化 · 美股/A股",
-  "short_name": "皓哥量化",
+  "name": "皓量化 · Brad Quant",
+  "short_name": "皓量化",
   "description": "美股 / A股 多因子量化分析看板：搜索个股，输出综合评分、买卖信号、风控与回测。",
   "lang": "zh-CN",
   "start_url": "./index.html",

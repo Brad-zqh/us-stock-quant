@@ -1,6 +1,6 @@
 {
   "appId": "com.brad.stockquant",
-  "appName": "皓哥量化",
+  "appName": "皓量化",
   "webDir": "www",
   "server": {
     "androidScheme": "https",
