@@ -1,8 +1,9 @@
 name: Build Desktop App (Tauri · Win/Mac)
 
 # 触发方式:
-#   1) 手动: Actions 页面点 "Run workflow"
-#   2) 打 tag: git tag v1.0.0 && git push origin v1.0.0
+#   1) 手动: Actions 页面点 "Run workflow" (只产出安装包, 不发 Release)
+#   2) 打 tag: git tag v1.0.6 && git push origin v1.0.6
+#      → 构建 + 签名更新包 + 生成 latest.json + 发布 Release (支持 App 内一键更新)
 on:
   workflow_dispatch:
   push:
@@ -19,12 +20,11 @@ jobs:
         include:
           - os: macos-latest
             name: macOS
+            args: "--target universal-apple-darwin"
           - os: windows-latest
             name: Windows
+            args: ""
     runs-on: ${{ matrix.os }}
-    defaults:
-      run:
-        working-directory: app-shell/tauri
     steps:
       - uses: actions/checkout@v4
 
@@ -45,49 +45,62 @@ jobs:
         with:
           workspaces: app-shell/tauri/src-tauri
 
-      - name: Install deps
+      - name: Install frontend deps
+        working-directory: app-shell/tauri
         run: npm install
 
       - name: Generate app icons (from 512 源图)
+        working-directory: app-shell/tauri
         run: npx @tauri-apps/cli@2 icon ../web/icons/icon-512.png
 
-      - name: Build Tauri bundles (Windows)
-        if: matrix.name == 'Windows'
-        run: npm run build
+      # tauri-action 负责: 构建 → 签名更新产物(.sig) → 生成/合并 latest.json → 发布/更新 Release
+      # 仅在打 tag 时创建 Release; workflow_dispatch 时 tagName 为空, 只构建不发布。
+      - name: Build + Release (Tauri Action)
+        uses: tauri-apps/tauri-action@v0
+        id: tauri
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          projectPath: app-shell/tauri
+          tagName: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || '' }}
+          releaseName: "皓量化 ${{ github.ref_name }}"
+          releaseBody: |
+            皓量化 (Brad Quant) 桌面版。
+            桌面 App 支持「应用内一键更新」(右下角 ⟳ → 一键更新, 自动重启)。
+            Windows: 直接安装 StockQuant-Windows-Setup.exe。
+            macOS: 装 StockQuant-macOS.dmg, 首次若提示"已损坏"按下载页 3 步解锁。
+          releaseDraft: false
+          prerelease: false
+          args: ${{ matrix.args }}
 
-      - name: Build Tauri bundles (macOS universal · Intel+Apple 通吃)
-        if: matrix.name == 'macOS'
-        run: npx @tauri-apps/cli@2 build --target universal-apple-darwin
+      # 为「下载页」固定链接再上传一份稳定文件名的安装包 (与更新产物是同一构建)
+      - name: Stage stable-named installers
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          if [ "${{ matrix.name }}" = "Windows" ]; then
+            f=$(find app-shell/tauri/src-tauri/target -path '*nsis*' -name '*-setup.exe' | head -n1)
+            cp "$f" "StockQuant-Windows-Setup.exe"
+            gh release upload "${{ github.ref_name }}" "StockQuant-Windows-Setup.exe" --clobber
+          else
+            f=$(find app-shell/tauri/src-tauri/target -name '*.dmg' | head -n1)
+            cp "$f" "StockQuant-macOS.dmg"
+            gh release upload "${{ github.ref_name }}" "StockQuant-macOS.dmg" --clobber
+          fi
 
-      - name: Upload installers
+      # 手动触发(无 tag)时: 把安装包作为工作流产物, 方便测试下载
+      - name: Upload installers (workflow_dispatch 测试用)
+        if: ${{ github.event_name == 'workflow_dispatch' }}
         uses: actions/upload-artifact@v4
         with:
           name: desktop-${{ matrix.name }}
           if-no-files-found: warn
           path: |
             app-shell/tauri/src-tauri/target/**/release/bundle/**/*.dmg
-            app-shell/tauri/src-tauri/target/**/release/bundle/**/*.app
             app-shell/tauri/src-tauri/target/**/release/bundle/**/*.msi
             app-shell/tauri/src-tauri/target/**/release/bundle/**/*.exe
-
-      - name: Stage Windows installer (稳定文件名)
-        if: matrix.name == 'Windows' && startsWith(github.ref, 'refs/tags/')
-        shell: pwsh
-        run: |
-          $f = Get-ChildItem -Recurse src-tauri/target/release/bundle/nsis -Filter *.exe | Select-Object -First 1
-          Copy-Item $f.FullName "$env:RUNNER_TEMP/StockQuant-Windows-Setup.exe"
-
-      - name: Stage macOS dmg (稳定文件名)
-        if: matrix.name == 'macOS' && startsWith(github.ref, 'refs/tags/')
-        run: |
-          dmg=$(find src-tauri/target -name '*.dmg' | head -n1)
-          cp "$dmg" "$RUNNER_TEMP/StockQuant-macOS.dmg"
-
-      - name: Attach to Release
-        if: startsWith(github.ref, 'refs/tags/')
-        uses: softprops/action-gh-release@v2
-        with:
-          fail_on_unmatched_files: false
-          files: |
-            ${{ runner.temp }}/StockQuant-Windows-Setup.exe
-            ${{ runner.temp }}/StockQuant-macOS.dmg

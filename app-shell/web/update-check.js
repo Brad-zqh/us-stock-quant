@@ -1,12 +1,19 @@
 // 皓量化 · 外壳更新检查 + 手动"检查更新"按钮
-// - 打开 App 时自动对比云端 version.json, 有新版弹横幅。
-// - 右下角常驻"⟳ 更新"按钮, 点开可: 检查版本 / 强制刷新内容 / 下载最新安装包。
+// 两种模式：
+//  A. 桌面 App(Tauri, 支持原生更新)：直接在 App 内「下载并安装 → 自动重启」，无需手动重装。
+//  B. 浏览器 / PWA / 旧版外壳：回退到对比云端 version.json，有新版引导到下载页手动安装。
 // 说明: 行情与分析内容始终来自云端 iframe, 本身实时最新; 更新主要针对 App 外壳。
 (function () {
   var LOCAL = window.APP_VERSION || "0.0.0";
   var BASE = "https://brad-zqh.github.io/us-stock-quant/";
   var VURL = BASE + "version.json";
   var DLURL = BASE + "download.html";
+
+  // 原生更新入口(仅桌面 App 有)。withGlobalTauri 下 invoke 在 __TAURI__.core.invoke。
+  var TAURI = window.__TAURI__ || null;
+  var TInvoke =
+    (TAURI && ((TAURI.core && TAURI.core.invoke) || TAURI.invoke)) || null;
+  var NATIVE_OK = false; // 首次成功调用原生命令后置真
 
   function cmp(a, b) {
     var pa = String(a).split(".").map(Number), pb = String(b).split(".").map(Number);
@@ -43,14 +50,15 @@
     fab.appendChild(dot);
   }
 
-  // 低调提示: 右下角"⟳"按钮上方的小胶囊, 几秒后自动消失; 想更新点它或点"⟳"按钮
-  function banner(v, notes, url) {
+  // 低调提示: 右下角小胶囊, 几秒后自动消失。
+  // onGo 为函数时点击执行它(原生一键更新)；为字符串时作为下载链接打开。
+  function banner(v, notes, onGo) {
     markFabDot();
     if (document.getElementById("hg-upd-chip")) return;
     var chip = document.createElement("div");
     chip.id = "hg-upd-chip";
     chip.style.cssText =
-      "position:fixed;right:14px;bottom:64px;z-index:99999;max-width:230px;" +
+      "position:fixed;right:14px;bottom:64px;z-index:99999;max-width:240px;" +
       "background:rgba(27,36,48,.96);color:#e8eaed;border:1px solid #33404f;border-radius:12px;" +
       "font:12px -apple-system,'PingFang SC','Microsoft YaHei',sans-serif;padding:8px 10px;" +
       "display:flex;align-items:center;gap:8px;box-shadow:0 6px 20px rgba(0,0,0,.4);" +
@@ -58,11 +66,20 @@
     var msg = document.createElement("div");
     msg.style.cssText = "flex:1;line-height:1.35";
     msg.innerHTML = "有新版 <b>v" + v + "</b>";
-    var go = document.createElement("a");
-    go.href = url; go.target = "_blank"; go.rel = "noopener";
-    go.textContent = "下载";
-    go.style.cssText =
-      "background:#2c3a4b;color:#fff;font-weight:600;text-decoration:none;" +
+    var go;
+    if (typeof onGo === "function") {
+      go = document.createElement("button");
+      go.textContent = "更新";
+      go.style.border = "0";
+      go.style.cursor = "pointer";
+      go.onclick = function () { chip.remove(); onGo(); };
+    } else {
+      go = document.createElement("a");
+      go.href = onGo || DLURL; go.target = "_blank"; go.rel = "noopener";
+      go.textContent = "下载";
+    }
+    go.style.cssText +=
+      ";background:#2c3a4b;color:#fff;font-weight:600;text-decoration:none;" +
       "padding:4px 10px;border-radius:8px;white-space:nowrap;font-size:12px";
     var x = document.createElement("button");
     x.textContent = "✕";
@@ -73,7 +90,6 @@
     chip.appendChild(msg); chip.appendChild(go); chip.appendChild(x);
     document.body.appendChild(chip);
     requestAnimationFrame(function () { chip.style.opacity = "1"; });
-    // 6 秒后自动隐去 (红点仍在, 随时可从"⟳"按钮再下载)
     setTimeout(function () {
       if (!chip.parentNode) return;
       chip.style.opacity = "0";
@@ -106,19 +122,54 @@
     setTimeout(done, 1500);
   }
 
-  // 检查版本: manual=true 时无论新旧都给提示
-  function checkNow(manual) {
+  // —— 原生(桌面 App)更新 ——
+  // 下载并安装最新版, 完成后 App 自动重启。
+  function nativeInstall() {
+    if (!TInvoke) { window.open(DLURL, "_blank", "noopener"); return; }
+    toast("正在下载并安装更新, 完成后会自动重启…");
+    TInvoke("install_update").then(function () {
+      toast("更新完成, 正在重启…");
+    }).catch(function (e) {
+      // 该版本外壳不支持原生更新 → 回退到手动下载
+      toast("无法自动更新, 已打开下载页");
+      window.open(DLURL, "_blank", "noopener");
+    });
+  }
+
+  // 原生检查: 成功即标记 NATIVE_OK。返回是否有新版。
+  function nativeCheck(manual) {
+    return TInvoke("check_update").then(function (info) {
+      NATIVE_OK = true;
+      if (info && info.version) {
+        banner(info.version, info.notes || "", nativeInstall); // 点"更新"=一键安装
+        return true;
+      }
+      if (manual) toast("✅ 已是最新版本 v" + LOCAL);
+      return false;
+    });
+  }
+
+  // —— 浏览器 / PWA / 旧壳: 对比 version.json, 引导手动下载 ——
+  function legacyCheck(manual) {
     return fetch(VURL, { cache: "no-store" })
       .then(function (r) { return r.json(); })
       .then(function (j) {
         if (j && j.version && cmp(j.version, LOCAL) > 0) {
-          banner(j.version, j.notes || "", j.downloadUrl || DLURL);
+          banner(j.version, j.notes || "", j.downloadUrl || DLURL); // 点"下载"=打开下载页
           return true;
         }
         if (manual) toast("✅ 已是最新版本 v" + LOCAL);
         return false;
       })
       .catch(function () { if (manual) toast("检查失败, 请检查网络"); return false; });
+  }
+
+  // 统一入口: 桌面 App 优先走原生, 失败(旧壳/浏览器)自动回退。
+  function checkNow(manual) {
+    if (TInvoke) {
+      return nativeCheck(manual).catch(function () { return legacyCheck(manual); });
+    }
+    return legacyCheck(manual);
   }
 
   // 右下角面板
@@ -130,12 +181,13 @@
     var box = document.createElement("div");
     box.id = "hg-upd-panel";
     box.style.cssText =
-      "position:fixed;right:14px;bottom:64px;z-index:100000;width:210px;background:#1b2430;" +
+      "position:fixed;right:14px;bottom:64px;z-index:100000;width:214px;background:#1b2430;" +
       "color:#e8eaed;border:1px solid #33404f;border-radius:14px;padding:12px;" +
       "font:13px -apple-system,'PingFang SC','Microsoft YaHei',sans-serif;box-shadow:0 8px 28px rgba(0,0,0,.5)";
     box.innerHTML =
       "<div style='font-weight:700;margin-bottom:8px'>🛠 更新与刷新</div>" +
-      "<div style='opacity:.75;margin-bottom:10px'>当前版本 v" + LOCAL + "</div>";
+      "<div style='opacity:.75;margin-bottom:10px'>当前版本 v" + LOCAL +
+      (TInvoke ? " · 桌面版" : "") + "</div>";
     function mkBtn(label, fn) {
       var b = document.createElement("button");
       b.textContent = label;
@@ -149,7 +201,13 @@
     }
     mkBtn("🔍 检查新版本", function () { checkNow(true); });
     mkBtn("🔄 强制刷新内容", forceRefresh);
-    mkBtn("⬇️ 下载最新安装包", function () { window.open(DLURL, "_blank", "noopener"); });
+    if (TInvoke) {
+      // 桌面 App: 一键下载+安装+自动重启
+      mkBtn("⬇️ 一键更新 (自动重启)", nativeInstall);
+    } else {
+      // 浏览器 / PWA: 打开下载页手动安装
+      mkBtn("⬇️ 下载最新安装包", function () { window.open(DLURL, "_blank", "noopener"); });
+    }
     var close = document.createElement("div");
     close.textContent = "关闭";
     close.style.cssText = "text-align:center;margin-top:6px;opacity:.6;cursor:pointer";

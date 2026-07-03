@@ -2,12 +2,13 @@
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "皓量化",
   "mainBinaryName": "BradQuant",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "identifier": "com.brad.stockquant",
   "build": {
     "frontendDist": "../www"
   },
   "app": {
+    "withGlobalTauri": true,
     "windows": [
       {
         "title": "皓量化 · 美股/A股",
@@ -25,6 +26,7 @@
   },
   "bundle": {
     "active": true,
+    "createUpdaterArtifacts": true,
     "targets": ["nsis", "app", "dmg"],
     "macOS": {
       "signingIdentity": "-"
@@ -36,5 +38,13 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ]
+  },
+  "plugins": {
+    "updater": {
+      "endpoints": [
+        "https://github.com/Brad-zqh/us-stock-quant/releases/latest/download/latest.json"
+      ],
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDlGNDk2RDVBNkRCMDdFOTAKUldTUWZyQnRXbTFKbjZEZWN5c3U5d2Y0SFdoS1AyN29KTWN6cHQvM3EyT3ZxdEo5azBLL1VVRXAK"
+    }
   }
 }

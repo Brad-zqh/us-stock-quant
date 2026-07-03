@@ -4,6 +4,7 @@
   "description": "桌面壳默认权限",
   "windows": ["*"],
   "permissions": [
-    "core:default"
+    "core:default",
+    "updater:default"
   ]
 }
