@@ -327,23 +327,47 @@ def _bilingual_line(i: dict, translate: bool) -> str:
     return f"- {d} {en}"
 
 
-def rule_based_news_digest(name: str, items: list[dict], translate: bool = True) -> str:
-    """无大模型时的规则版利好/利空速览: 按每条新闻的情绪分分桶, 各挑最多三条。
+def rule_based_news_digest(name: str, items: list[dict], translate: bool = True,
+                           k: int = 3) -> str:
+    """无大模型时的规则版利好/利空速览: 按每条新闻的情绪分分桶, 各挑最多 k 条。
+       利好/利空各优先取强信号(>0.05 / <-0.05); 不足 k 条时, 用最接近该方向的
+       中性新闻补足到 k 条, 但绝不会把明显利好的新闻塞进利空(反之亦然)。
        美股新闻多为英文, 默认用免费翻译接口补上中文, 做成中英对照。"""
     if not items:
         return "近期暂无可用新闻。"
-    scored = [(float(i.get("sentiment", 0) or 0), i) for i in items]
+    scored = [(float(i.get("sentiment", 0) or 0), idx, i)
+              for idx, i in enumerate(items)]
     pos = sorted([x for x in scored if x[0] > 0.05], key=lambda x: -x[0])
     neg = sorted([x for x in scored if x[0] < -0.05], key=lambda x: x[0])
+    used = {x[1] for x in pos[:k]} | {x[1] for x in neg[:k]}
+    mid = [x for x in scored if -0.05 <= x[0] <= 0.05 and x[1] not in used]
+
+    pick_pos = list(pos[:k])
+    for x in sorted(mid, key=lambda x: -x[0]):        # 偏高的中性补利好
+        if len(pick_pos) >= k:
+            break
+        if x[1] in used:
+            continue
+        pick_pos.append(x)
+        used.add(x[1])
+    pick_neg = list(neg[:k])
+    for x in sorted(mid, key=lambda x: x[0]):          # 偏低的中性补利空
+        if len(pick_neg) >= k:
+            break
+        if x[1] in used:
+            continue
+        pick_neg.append(x)
+        used.add(x[1])
+
     lines = ["**🟢 利好**"]
-    if pos:
-        for _, i in pos[:3]:
+    if pick_pos:
+        for _, _, i in pick_pos[:k]:
             lines.append(_bilingual_line(i, translate))
     else:
         lines.append("- 暂无明显利好")
     lines.append("**🔴 利空**")
-    if neg:
-        for _, i in neg[:3]:
+    if pick_neg:
+        for _, _, i in pick_neg[:k]:
             lines.append(_bilingual_line(i, translate))
     else:
         lines.append("- 暂无明显利空")
@@ -376,13 +400,13 @@ def llm_news_digest(name: str, items: list[dict], creds: dict | None = None,
             "硬性规则：\n"
             "1) 只依据给定标题，不得编造标题里没有的事实或数字；\n"
             "2) 全部用简体中文；每条先给一句中文概括，可在括号内附上关键英文原词；\n"
-            "3) 利好、利空各列最多三条(不足三条就有几条写几条；确实没有就写“暂无明显利好/利空”)；\n"
+            "3) 利好、利空各尽量列满三条：从最接近该方向的新闻里挑选凑满三条(偏正面的归利好、偏负面的归利空)；实在没有任何相关新闻时才写“暂无明显利好/利空”；\n"
             "4) 严格按下面格式输出，不要额外开场白或免责声明：\n"
             "🟢 利好\n- 日期 中文要点\n- 日期 中文要点\n- 日期 中文要点\n"
             "🔴 利空\n- 日期 中文要点\n- 日期 中文要点\n- 日期 中文要点\n"
             "📌 一句话总结：综合来看当前消息面偏多、偏空还是中性，一句中文话。")
         user_msg = (f"股票：{name}\n最近新闻标题(含日期)：\n{news_block}\n\n"
-                    "请按规定格式用中文总结利好与利空，各最多三条，并翻译要点。")
+                    "请按规定格式用中文总结利好与利空，各尽量凑满三条，并翻译要点。")
         r = requests.post(
             f"{creds['base_url'].rstrip('/')}/chat/completions",
             headers={"Authorization": f"Bearer {creds['api_key']}",
