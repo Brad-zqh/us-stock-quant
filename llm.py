@@ -269,33 +269,32 @@ def _fmt_when(w) -> str:
 
 
 def rule_based_news_digest(name: str, items: list[dict]) -> str:
-    """无大模型时的规则版利好/利空速览: 按每条新闻的情绪分分桶, 各挑几条标题。"""
+    """无大模型时的规则版利好/利空速览: 按每条新闻的情绪分分桶, 各挑最多三条。
+       美股新闻多为英文, 无大模型时无法翻译, 原样展示标题。"""
     if not items:
         return "近期暂无可用新闻。"
-    pos = [i for i in items if float(i.get("sentiment", 0) or 0) > 0.1]
-    neg = [i for i in items if float(i.get("sentiment", 0) or 0) < -0.1]
-    pos.sort(key=lambda i: -float(i.get("sentiment", 0) or 0))
-    neg.sort(key=lambda i: float(i.get("sentiment", 0) or 0))
-    lines = []
+    scored = [(float(i.get("sentiment", 0) or 0), i) for i in items]
+    pos = sorted([x for x in scored if x[0] > 0.05], key=lambda x: -x[0])
+    neg = sorted([x for x in scored if x[0] < -0.05], key=lambda x: x[0])
+    lines = ["**🟢 利好**"]
     if pos:
-        lines.append("**🟢 利好**")
-        for i in pos[:3]:
-            d = _fmt_when(i.get("when"))
-            lines.append(f"- {d} {i['title']}")
+        for _, i in pos[:3]:
+            lines.append(f"- {_fmt_when(i.get('when'))} {i['title']}")
+    else:
+        lines.append("- 暂无明显利好")
+    lines.append("**🔴 利空**")
     if neg:
-        lines.append("**🔴 利空**")
-        for i in neg[:3]:
-            d = _fmt_when(i.get("when"))
-            lines.append(f"- {d} {i['title']}")
-    if not pos and not neg:
-        lines.append("近期新闻情绪偏中性，无明显利好或利空。")
-    lines.append("\n_基于新闻标题情绪自动归类，仅供研究，非投资建议。_")
+        for _, i in neg[:3]:
+            lines.append(f"- {_fmt_when(i.get('when'))} {i['title']}")
+    else:
+        lines.append("- 暂无明显利空")
+    lines.append("\n_基于新闻标题情绪自动归类；填入大模型 Key 可获得中文翻译与摘要。仅供研究，非投资建议。_")
     return "\n\n".join(lines)
 
 
 def llm_news_digest(name: str, items: list[dict], creds: dict | None = None,
-                    timeout: int = 25) -> str:
-    """让大模型阅读最近新闻标题, 用几句话总结该股的最新利好与利空。
+                    timeout: int = 30) -> str:
+    """让大模型阅读最近新闻标题, 用中文总结该股最新利好与利空(各最多三条, 含翻译)。
        无 key / 无新闻 / 失败 -> 回退规则版。"""
     if not items:
         return "近期暂无可用新闻。"
@@ -305,7 +304,7 @@ def llm_news_digest(name: str, items: list[dict], creds: dict | None = None,
     try:
         import requests
         heads = []
-        for i in items[:14]:
+        for i in items[:16]:
             t = str(i.get("title", "")).strip()
             if t:
                 heads.append(f"[{_fmt_when(i.get('when'))}] {t}")
@@ -313,15 +312,18 @@ def llm_news_digest(name: str, items: list[dict], creds: dict | None = None,
             return rule_based_news_digest(name, items)
         news_block = "\n".join(f"- {h}" for h in heads)
         sys_msg = (
-            "你是一位专业的股票新闻分析师。用户会给你某只股票最近的一批新闻标题，"
-            "请你据此总结该股当前的『利好』与『利空』信息。硬性规则："
-            "只依据给定标题，不得编造标题里没有的事实或数字；"
-            "输出用简体中文，严格采用如下格式，不要有多余开场白：\n"
-            "🟢 利好：用一到两句话概括主要利好（若无则写“暂无明显利好”）。\n"
-            "🔴 利空：用一到两句话概括主要利空（若无则写“暂无明显利空”）。\n"
-            "📌 一句话总结：综合来看当前消息面偏多、偏空还是中性，一句话。\n"
-            "每部分务必简洁，总字数控制在120字以内；不要输出表格、编号列表或免责声明。")
-        user_msg = f"股票：{name}\n最近新闻标题：\n{news_block}\n\n请按规定格式总结利好与利空。"
+            "你是一位专业的股票新闻分析师。用户会给你某只股票最近的一批新闻标题(多为英文)。"
+            "请依据这些标题，把消息面归纳成中文的『利好』与『利空』，并把英文要点翻译成中文。"
+            "硬性规则：\n"
+            "1) 只依据给定标题，不得编造标题里没有的事实或数字；\n"
+            "2) 全部用简体中文；每条先给一句中文概括，可在括号内附上关键英文原词；\n"
+            "3) 利好、利空各列最多三条(不足三条就有几条写几条；确实没有就写“暂无明显利好/利空”)；\n"
+            "4) 严格按下面格式输出，不要额外开场白或免责声明：\n"
+            "🟢 利好\n- 日期 中文要点\n- 日期 中文要点\n- 日期 中文要点\n"
+            "🔴 利空\n- 日期 中文要点\n- 日期 中文要点\n- 日期 中文要点\n"
+            "📌 一句话总结：综合来看当前消息面偏多、偏空还是中性，一句中文话。")
+        user_msg = (f"股票：{name}\n最近新闻标题(含日期)：\n{news_block}\n\n"
+                    "请按规定格式用中文总结利好与利空，各最多三条，并翻译要点。")
         r = requests.post(
             f"{creds['base_url'].rstrip('/')}/chat/completions",
             headers={"Authorization": f"Bearer {creds['api_key']}",
@@ -329,14 +331,14 @@ def llm_news_digest(name: str, items: list[dict], creds: dict | None = None,
             json={"model": creds["model"],
                   "messages": [{"role": "system", "content": sys_msg},
                                {"role": "user", "content": user_msg}],
-                  "temperature": 0.2, "max_tokens": 320},
+                  "temperature": 0.2, "max_tokens": 600},
             timeout=timeout)
         r.raise_for_status()
         raw = r.json()["choices"][0]["message"]["content"].strip()
         if len(raw) < 10 or "利好" not in raw:
             return rule_based_news_digest(name, items)
         raw = raw.replace("仅供研究，非投资建议。", "").strip()
-        return raw + "\n\n_大模型基于新闻标题归纳，可能有偏差，仅供研究，非投资建议。_"
+        return raw + "\n\n_大模型基于新闻标题归纳与翻译，可能有偏差，仅供研究，非投资建议。_"
     except Exception:
         return rule_based_news_digest(name, items)
 
