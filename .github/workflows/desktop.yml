@@ -104,3 +104,36 @@ jobs:
             app-shell/tauri/src-tauri/target/**/release/bundle/**/*.dmg
             app-shell/tauri/src-tauri/target/**/release/bundle/**/*.msi
             app-shell/tauri/src-tauri/target/**/release/bundle/**/*.exe
+
+  # 兜底生成 latest.json (updater 端点)。
+  # productName 为中文时, tauri-action 无法把 .sig 与产物对上会跳过 latest.json,
+  # 这里等两个平台都构建完后, 从 Release 上已有的 .sig 资产独立组装并上传。
+  updater-json:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Generate & upload latest.json
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -e
+          base="https://github.com/$REPO/releases/download/$TAG"
+          assets=$(gh release view "$TAG" --repo "$REPO" --json assets --jq '.assets[].name')
+          echo "release assets:"; echo "$assets"
+          win_sig=$(echo "$assets" | grep -E '\-setup\.exe\.sig$' | head -n1)
+          mac_sig=$(echo "$assets" | grep -E '\.app\.tar\.gz\.sig$' | head -n1)
+          if [ -z "$win_sig" ] || [ -z "$mac_sig" ]; then
+            echo "缺少签名资产 (win_sig='$win_sig' mac_sig='$mac_sig')"; exit 1
+          fi
+          gh release download "$TAG" --repo "$REPO" -p "$win_sig" -p "$mac_sig" --clobber
+          export BASE="$base" VER="${TAG#v}"
+          export WIN_SIG="$win_sig" WIN_FILE="${win_sig%.sig}"
+          export MAC_SIG="$mac_sig" MAC_FILE="${mac_sig%.sig}"
+          export NOTES="皓量化 ${TAG#v}：桌面版支持应用内一键自动更新。"
+          python3 app-shell/tauri/scripts/gen_latest_json.py
+          gh release upload "$TAG" latest.json --repo "$REPO" --clobber
+          echo "latest.json 已上传。"
