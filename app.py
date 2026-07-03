@@ -228,27 +228,70 @@ with st.sidebar.expander("🔎 搜索股票并加入收藏", expanded=True):
                 st.toast(f"已加入收藏: {_n}" if _add_fav(_c, _n) else "这只已在收藏里了")
                 st.rerun()
 
-# —— 收藏列表 (可上移置顶 / 移除)
+# 拖拽排序组件 (缺失时自动降级为 ↑ 按钮)
+try:
+    from streamlit_sortables import sort_items as _sort_items
+    _HAS_SORT = True
+except Exception:
+    _HAS_SORT = False
+
+_SORT_CSS = """
+.sortable-component { background: transparent; border: 0; padding: 0; }
+.sortable-item, .sortable-item:hover {
+  background:#2c3a4b; color:#e8eaed; font-weight:600; font-size:.86em;
+  border:1px solid #33404f; border-radius:8px; padding:7px 9px; margin:4px 0;
+  cursor:grab; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.sortable-item.dragging { background:#37485c; cursor:grabbing; }
+"""
+
+# —— 收藏列表 (拖动排序 / 移除)
 _lines = _fav_lines()
+# 去重 (拖拽组件要求条目唯一; 正常每只代码唯一, 此处防手动粘贴重复)
+_seen = set()
+_uniq = []
+for _ln in _lines:
+    if _ln not in _seen:
+        _seen.add(_ln)
+        _uniq.append(_ln)
+_lines = _uniq
+
 if _lines:
-    st.sidebar.caption(f"共 {len(_lines)} 只 · ↑上移 ✕移除")
-    for _i, _ln in enumerate(_lines):
-        _p = _ln.split(None, 1)
-        _code = _p[0]
-        _nm = _p[1] if len(_p) > 1 else ""
-        _ca, _cb, _cc = st.sidebar.columns([6, 1, 1])
-        _ca.markdown(
-            f"<div style='font-size:.85em;padding-top:6px;overflow:hidden;white-space:nowrap;"
-            f"text-overflow:ellipsis'>{_code} <span style='color:#9aa0aa'>{_nm}</span></div>",
-            unsafe_allow_html=True)
-        if _cb.button("↑", key=f"fav_up_{_i}", help="上移", disabled=(_i == 0)):
-            _lines[_i - 1], _lines[_i] = _lines[_i], _lines[_i - 1]
-            _set_fav(_lines)
+    if _HAS_SORT:
+        st.sidebar.caption(f"共 {len(_lines)} 只 · 按住拖动排序 (顶部优先显示)")
+        with st.sidebar:
+            _order = _sort_items(_lines, direction="vertical",
+                                 custom_style=_SORT_CSS, key="fav_sort")
+        if _order and _order != _lines:
+            _set_fav(_order)
             st.rerun()
-        if _cc.button("✕", key=f"fav_rm_{_i}", help="移除"):
-            _lines.pop(_i)
-            _set_fav(_lines)
+        # 移除 (可多选)
+        _rm = st.sidebar.multiselect("移除 (可多选)", _lines, key="fav_rm_sel",
+                                     placeholder="选择要移除的股票")
+        if _rm and st.sidebar.button("✕ 移除所选", key="fav_rm_btn",
+                                     use_container_width=True):
+            _set_fav([ln for ln in _lines if ln not in _rm])
             st.rerun()
+    else:
+        # 降级: 逐行 ↑上移 / ✕移除
+        st.sidebar.caption(f"共 {len(_lines)} 只 · ↑上移 ✕移除")
+        for _i, _ln in enumerate(_lines):
+            _p = _ln.split(None, 1)
+            _code = _p[0]
+            _nm = _p[1] if len(_p) > 1 else ""
+            _ca, _cb, _cc = st.sidebar.columns([6, 1, 1])
+            _ca.markdown(
+                f"<div style='font-size:.85em;padding-top:6px;overflow:hidden;white-space:nowrap;"
+                f"text-overflow:ellipsis'>{_code} <span style='color:#9aa0aa'>{_nm}</span></div>",
+                unsafe_allow_html=True)
+            if _cb.button("↑", key=f"fav_up_{_i}", help="上移", disabled=(_i == 0)):
+                _lines[_i - 1], _lines[_i] = _lines[_i], _lines[_i - 1]
+                _set_fav(_lines)
+                st.rerun()
+            if _cc.button("✕", key=f"fav_rm_{_i}", help="移除"):
+                _lines.pop(_i)
+                _set_fav(_lines)
+                st.rerun()
 else:
     st.sidebar.caption("收藏为空 —— 上方搜索添加, 或到「个股详情」点 ⭐ 加入。")
 

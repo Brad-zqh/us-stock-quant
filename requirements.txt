@@ -8,3 +8,4 @@ vaderSentiment>=3.3
 akshare>=1.16
 requests>=2.31
 streamlit-local-storage>=0.0.25
+streamlit-sortables>=0.3.1
