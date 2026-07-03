@@ -1,6 +1,6 @@
 [package]
 name = "stockquant-desktop"
-version = "1.0.0"
+version = "1.0.4"
 description = "皓哥量化 Mac/Windows 桌面壳"
 edition = "2021"
 rust-version = "1.77.2"
