@@ -86,10 +86,30 @@ except Exception:
 # 你的自选股 (可在 app 里改). 名称仅作显示用.
 # ----------------------------------------------------------------------------
 DEFAULT_WATCHLIST = {
+    # 💾 存储 / 内存 (高弹性)
     "SNDK": "闪迪 SanDisk",
     "MU":   "美光科技 Micron",
-    "LITE": "Lumentum",
+    "STX":  "希捷 Seagate",
+    "WDC":  "西部数据 WDC",
+    # 🔬 半导体 / 算力
     "NVDA": "英伟达 Nvidia",
+    "AMD":  "超威 AMD",
+    "AVGO": "博通 Broadcom",
+    "MRVL": "迈威尔 Marvell",
+    "SMCI": "超微 Supermicro",
+    # ⚙️ 半导体设备
+    "AMAT": "应用材料 AMAT",
+    "LRCX": "泛林 Lam Research",
+    "KLAC": "科磊 KLA",
+    # 🔦 光通信 / 网络
+    "LITE": "Lumentum",
+    "ANET": "Arista 网络",
+    # 🚀 高波成长
+    "PLTR": "Palantir",
+    "CRWD": "CrowdStrike",
+    "NET":  "Cloudflare",
+    "SNOW": "Snowflake",
+    # 🏛️ 科技大盘 (压舱)
     "AAPL": "苹果 Apple",
     "TSLA": "特斯拉 Tesla",
     "MSFT": "微软 Microsoft",
