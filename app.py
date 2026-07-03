@@ -341,6 +341,30 @@ def render_detail(code: str, info: dict, currency: str = "$", name: str = ""):
         else:
             st.caption(f"📅 下次财报: {earn['date']} (还有 {earn['days']} 天)")
 
+    # ---- 💡 利好/利空速览 (放最前, 几句话看懂最新消息面; 有 Key 用大模型, 否则规则版)
+    news_items = info.get("news", [])
+    if news_items:
+        dk = f"newsdigest_{code}"
+        _creds_d = _llm_creds_from_ui()
+        dc1, dc2 = st.columns([1, 2])
+        gen_d = dc1.button("💡 生成利好/利空速览", key=f"btn_{dk}")
+        auto_d = dc2.checkbox("切换股票自动生成速览", key=f"auto_{dk}", value=False)
+        need_d = gen_d or (auto_d and st.session_state.get(dk + "_for") != code)
+        if need_d:
+            try:
+                if not hasattr(llm, "llm_news_digest"):
+                    import importlib
+                    importlib.reload(llm)
+                with st.spinner("正在总结最新利好与利空…"):
+                    st.session_state[dk] = llm.llm_news_digest(
+                        name, news_items, creds=_creds_d)
+                    st.session_state[dk + "_for"] = code
+            except Exception as _e:
+                st.session_state[dk] = f"(速览生成失败: {_e})"
+                st.session_state[dk + "_for"] = code
+        if st.session_state.get(dk):
+            st.info(st.session_state[dk])
+
     # ---- 📝 策略解读 (白话归因)
     try:
         ex = explain.build_explanation(info, cur=cur, reg=res.get("regime"))
@@ -525,28 +549,7 @@ def render_detail(code: str, info: dict, currency: str = "$", name: str = ""):
     if not news_items:
         st.caption("暂无新闻数据 (或已关闭新闻因子)。")
     else:
-        # 利好/利空速览 (有 Key 用大模型总结, 否则规则版按情绪分桶)
-        dk = f"newsdigest_{code}"
-        _creds_d = _llm_creds_from_ui()
-        dc1, dc2 = st.columns([1, 2])
-        gen_d = dc1.button("🧠 生成利好/利空速览", key=f"btn_{dk}")
-        auto_d = dc2.checkbox("切换股票自动生成", key=f"auto_{dk}", value=False)
-        need_d = gen_d or (auto_d and st.session_state.get(dk + "_for") != code)
-        if need_d:
-            try:
-                if not hasattr(llm, "llm_news_digest"):
-                    import importlib
-                    importlib.reload(llm)
-                with st.spinner("正在总结最新利好与利空…"):
-                    st.session_state[dk] = llm.llm_news_digest(
-                        name, news_items, creds=_creds_d)
-                    st.session_state[dk + "_for"] = code
-            except Exception as _e:
-                st.session_state[dk] = f"(速览生成失败: {_e})"
-                st.session_state[dk + "_for"] = code
-        if st.session_state.get(dk):
-            st.info(st.session_state[dk])
-
+        st.caption("💡 想看几句话总结的利好/利空，见本页最上方「利好/利空速览」。")
         with st.expander("展开逐条新闻", expanded=True):
             for it in news_items:
                 sent = it["sentiment"]
