@@ -26,6 +26,7 @@ import llm
 import auth
 import userstore
 import orderstore
+import favorites
 
 st.set_page_config(page_title="皓量化", layout="wide", page_icon="📈")
 
@@ -44,43 +45,10 @@ if CURRENT_USER:
         auth.logout()
         st.rerun()
 
-# 每人自选股默认值: 已登录用其账户里保存的, 否则用系统默认池
-_default_pool = "\n".join(f"{k}  {v}" for k, v in engine.DEFAULT_WATCHLIST.items())
-if CURRENT_USER:
-    _prof = userstore.get_profile(CURRENT_USER) or {}
-    _saved_wt = (_prof.get("watchlist_text") or "").strip()
-    default_codes = _saved_wt if _saved_wt else _default_pool
-else:
-    default_codes = _default_pool
-codes_text = st.sidebar.text_area(
-    "自选股 (每行: 代码 空格 名称)", value=default_codes, height=200)
-if CURRENT_USER:
-    if st.sidebar.button("💾 保存自选股到我的账户", use_container_width=True):
-        if userstore.update_profile(CURRENT_USER, watchlist_text=codes_text):
-            st.sidebar.success("已保存到你的账户。")
-        else:
-            st.sidebar.error("保存失败, 请重试。")
-period = st.sidebar.selectbox("数据周期", ["1y", "2y", "5y"], index=1)
-use_news = st.sidebar.checkbox("启用新闻情绪因子 📰", value=True,
-                               help="抓取个股新闻并做金融情绪分析")
-use_fund = st.sidebar.checkbox("启用基本面/分析师/资金流 📊", value=True,
-                               help="PEG/营收增速/华尔街评级/目标价/OBV/CMF")
-refresh = st.sidebar.button("🔄 刷新分析", type="primary", use_container_width=True)
+# 侧边栏「⭐ 我的收藏」与分析参数在下方 (搜索函数定义之后) 构建, 见 build_watchlist_sidebar()
 
-# 解析自选股
-# 常见"名字/别名 -> 正确代码"映射 (避免把公司名当成代码导致取不到行情被丢弃)
-_TICKER_ALIAS = {
-    "SPACEX": "SPCX", "STARLINK": "SPCX", "星舰": "SPCX", "星链": "SPCX",
-    "马斯克": "SPCX", "SPACE-X": "SPCX", "SPACEX星舰": "SPCX",
-}
-watchlist = {}
-for line in codes_text.strip().splitlines():
-    parts = line.strip().split(None, 1)
-    if parts:
-        raw = parts[0]
-        code = _TICKER_ALIAS.get(raw.upper(), raw.upper())
-        name = parts[1] if len(parts) > 1 else (raw if code == raw.upper() else raw)
-        watchlist[code] = name
+
+
 
 
 @st.cache_data(ttl=900, show_spinner="📡 拉取行情并计算中…")
@@ -178,6 +146,155 @@ def _llm_creds_from_ui():
     return c if c.get("api_key") else None
 
 
+# ============================ 侧边栏: ⭐ 我的收藏 (自选股) ============================
+# 常见"名字/别名 -> 正确代码"映射 (避免把公司名当成代码导致取不到行情被丢弃)
+_TICKER_ALIAS = {
+    "SPACEX": "SPCX", "STARLINK": "SPCX", "星舰": "SPCX", "星链": "SPCX",
+    "马斯克": "SPCX", "SPACE-X": "SPCX", "SPACEX星舰": "SPCX",
+}
+
+# 默认种子池: 麦迪科技(A股)置顶 + 系统默认池
+_MAIDI_LINE = "603990.SS  麦迪科技"
+_POOL_LINES = "\n".join(f"{k}  {v}" for k, v in engine.DEFAULT_WATCHLIST.items())
+_SEED_CODES = _MAIDI_LINE + "\n" + _POOL_LINES
+
+
+def _fav_lines() -> list:
+    return [ln.strip() for ln in st.session_state.get("fav_text", "").splitlines() if ln.strip()]
+
+
+def _set_fav(lines: list) -> None:
+    st.session_state["fav_text"] = "\n".join(lines)
+
+
+def _fav_codes_set() -> set:
+    return {ln.split(None, 1)[0].upper() for ln in _fav_lines()}
+
+
+def _add_fav(code: str, name: str) -> bool:
+    """加入收藏 (追加到末尾)。已存在返回 False。"""
+    code = (code or "").strip()
+    if not code:
+        return False
+    if code.upper() in _fav_codes_set():
+        return False
+    lines = _fav_lines()
+    lines.append(f"{code}  {name}".strip())
+    _set_fav(lines)
+    return True
+
+
+# 初始收藏来源优先级: 已登录账户 > 本机 localStorage > 种子池
+if "fav_text" not in st.session_state:
+    _init = ""
+    if CURRENT_USER:
+        _prof0 = userstore.get_profile(CURRENT_USER) or {}
+        _init = (_prof0.get("watchlist_text") or "").strip()
+    if not _init:
+        _init = (favorites.load() or "").strip()
+    if not _init:
+        _init = _SEED_CODES
+    st.session_state["fav_text"] = _init
+    st.session_state["_fav_persisted"] = (favorites.load() or "").strip()
+
+# 处理来自「个股详情」⭐ 的待加入 (须在 fav_text 文本框实例化前执行, 避免 session_state 冲突)
+_pend = st.session_state.pop("_pending_fav_add", None)
+if _pend:
+    _add_fav(_pend[0], _pend[1])
+
+st.sidebar.markdown("### ⭐ 我的收藏")
+st.sidebar.caption("搜索名称即可加入; 本机自动记住, 下次打开还在。第一只显示在最前。")
+
+# —— 搜索并加入收藏
+with st.sidebar.expander("🔎 搜索股票并加入收藏", expanded=True):
+    _fmkt = st.radio("市场", ["🇺🇸 美股", "🇨🇳 A股"], horizontal=True, key="fav_mkt")
+    _fq = st.text_input("输入代码或名称", key="fav_search_q",
+                        placeholder="如 NVDA / 苹果  或  麦迪 / 603990").strip()
+    if _fq:
+        if _fmkt.startswith("🇺🇸"):
+            _cands = search_us_cached(_fq)
+            _opts = [(s, (f"{n} · {cn}" if cn else n)) for s, n, cn, e, qt in _cands]
+        else:
+            _cands = search_a_cached(_fq)
+            _opts = [(c, n) for c, n in _cands]
+        if not _opts:
+            st.caption("没匹配到, 换个关键词试试 (A股用中文名或6位代码)。")
+        else:
+            _idx = st.selectbox("匹配结果", range(len(_opts)),
+                                format_func=lambda i: f"{_opts[i][0]}  {_opts[i][1]}",
+                                key="fav_pick")
+            if st.button("➕ 加入收藏", use_container_width=True, key="fav_add_btn"):
+                _c, _n = _opts[_idx]
+                st.toast(f"已加入收藏: {_n}" if _add_fav(_c, _n) else "这只已在收藏里了")
+                st.rerun()
+
+# —— 收藏列表 (可上移置顶 / 移除)
+_lines = _fav_lines()
+if _lines:
+    st.sidebar.caption(f"共 {len(_lines)} 只 · ↑上移 ✕移除")
+    for _i, _ln in enumerate(_lines):
+        _p = _ln.split(None, 1)
+        _code = _p[0]
+        _nm = _p[1] if len(_p) > 1 else ""
+        _ca, _cb, _cc = st.sidebar.columns([6, 1, 1])
+        _ca.markdown(
+            f"<div style='font-size:.85em;padding-top:6px;overflow:hidden;white-space:nowrap;"
+            f"text-overflow:ellipsis'>{_code} <span style='color:#9aa0aa'>{_nm}</span></div>",
+            unsafe_allow_html=True)
+        if _cb.button("↑", key=f"fav_up_{_i}", help="上移", disabled=(_i == 0)):
+            _lines[_i - 1], _lines[_i] = _lines[_i], _lines[_i - 1]
+            _set_fav(_lines)
+            st.rerun()
+        if _cc.button("✕", key=f"fav_rm_{_i}", help="移除"):
+            _lines.pop(_i)
+            _set_fav(_lines)
+            st.rerun()
+else:
+    st.sidebar.caption("收藏为空 —— 上方搜索添加, 或到「个股详情」点 ⭐ 加入。")
+
+# —— 恢复默认 (放在手动编辑框之前, 避免 widget 已实例化后再改 session_state)
+if st.sidebar.button("↩️ 恢复默认收藏", key="fav_reset"):
+    _set_fav([ln for ln in _SEED_CODES.splitlines() if ln.strip()])
+    st.rerun()
+
+# —— 手动编辑 / 批量粘贴 (高级)
+with st.sidebar.expander("✏️ 手动编辑 / 批量粘贴"):
+    st.text_area("每行: 代码 空格 名称 (A股带 .SS/.SZ)", key="fav_text", height=150)
+    st.caption("例: 603990.SS  麦迪科技")
+
+# —— 已登录: 额外同步到账户 (跨设备)
+if CURRENT_USER:
+    if st.sidebar.button("☁️ 同步到我的账户 (跨设备)", use_container_width=True):
+        if userstore.update_profile(CURRENT_USER, watchlist_text=st.session_state["fav_text"]):
+            st.sidebar.success("已同步到你的账户。")
+        else:
+            st.sidebar.error("同步失败, 请重试。")
+
+st.sidebar.divider()
+period = st.sidebar.selectbox("数据周期", ["1y", "2y", "5y"], index=1)
+use_news = st.sidebar.checkbox("启用新闻情绪因子 📰", value=True,
+                               help="抓取个股新闻并做金融情绪分析")
+use_fund = st.sidebar.checkbox("启用基本面/分析师/资金流 📊", value=True,
+                               help="PEG/营收增速/华尔街评级/目标价/OBV/CMF")
+refresh = st.sidebar.button("🔄 刷新分析", type="primary", use_container_width=True)
+
+# 本机 localStorage 持久化 (仅在收藏有变化时写一次)
+codes_text = st.session_state.get("fav_text", "")
+if codes_text.strip() != st.session_state.get("_fav_persisted", ""):
+    favorites.save(codes_text)
+    st.session_state["_fav_persisted"] = codes_text.strip()
+
+# 解析自选股
+watchlist = {}
+for line in codes_text.strip().splitlines():
+    parts = line.strip().split(None, 1)
+    if parts:
+        raw = parts[0]
+        code = _TICKER_ALIAS.get(raw.upper(), raw.upper())
+        name = parts[1] if len(parts) > 1 else (raw if code == raw.upper() else raw)
+        watchlist[code] = name
+
+
 if refresh:
     load.clear()
     load_screen.clear()
@@ -225,7 +342,7 @@ if reg:
         f"<b>🌐 大盘环境: {reg['label']}</b>　(择时分 {reg['score']})　"
         f"<span style='color:#999;font-size:0.9em'>{reg['detail']} — "
         f"Risk-On时全局略加分, Risk-Off时略减分</span></div>", unsafe_allow_html=True)
-st.caption(f"更新时间: {res['asof']}　·　基准: {engine.BENCHMARK}　·　11因子加权 · "
+st.caption(f"更新时间: {res['asof']}　·　基准: {engine.BENCHMARK}　·　12因子加权 · "
            "🔴红=看多 🟢绿=看空")
 
 # ---------------------------------------------------------------- 侧边栏: 推送
@@ -315,7 +432,7 @@ with tab1:
 
     st.markdown("###")
     factor_cols = [c for c in ["基本面", "趋势", "分析师", "动量", "盈利质量", "资金流",
-                               "筹码面", "风险", "相对大盘", "新闻情绪", "强弱"]
+                               "筹码面", "风险", "相对大盘", "板块热度", "新闻情绪", "强弱"]
                    if c in table.columns]
     show_cols = (["代码", "名称", "综合分", "信号"] + factor_cols +
                  ["现价", "止损价", "目标价", "止损%", "目标%", "建议仓位%"] +
@@ -645,6 +762,12 @@ with tab2:
         else:
             render_detail(code, info, currency=cur, name=name)
             rendered = True
+            _in_fav = code.upper() in _fav_codes_set()
+            if st.button(("⭐ 已在收藏" if _in_fav else "⭐ 加入收藏"),
+                         key="detail_add_fav", disabled=_in_fav):
+                st.session_state["_pending_fav_add"] = (code, name)
+                st.toast(f"已加入收藏: {name}")
+                st.rerun()
     elif watch_pick:
         render_detail(watch_pick, detail[watch_pick], currency="$",
                       name=watchlist.get(watch_pick, ""))
@@ -1007,7 +1130,7 @@ with tab6:
                "没有任何模型能准确预测股价。它的作用是把一篮子股票按「当前性价比」排序, "
                "并给出基于规则的买卖区间。是否有效, 以下方**回测指标(年化/夏普/胜率)**为准。")
 
-    st.markdown("### 综合分 = 11 个因子加权 (0~100 分)　+ 大盘环境微调")
+    st.markdown("### 综合分 = 12 个因子加权 (0~100 分)　+ 大盘环境微调")
     wdf = pd.DataFrame([
         ["基本面", "14%", "PEG、营收增速、毛利率、ROE、净利率 — 公司值不值这个价", "yfinance"],
         ["趋势", "13%", "价格 vs SMA50/200、金叉死叉、ADX趋势强度 — 方向与强度", "技术"],
@@ -1018,10 +1141,12 @@ with tab6:
         ["筹码面🆕", "8%", "机构持股、内部人持股、做空比例/回补天数 — 主力与空头怎么站队", "yfinance"],
         ["风险", "8%", "年化波动率 — 越稳越高分", "技术"],
         ["相对大盘", "7%", "近63日跑赢/跑输 QQQ(纳指) — 相对强度", "技术"],
+        ["板块热度🆕", "6%", "所处行业板块近期是不是热点 — A股行业当日涨幅分位/美股行业ETF动量", "东财/ETF"],
         ["新闻情绪", "6%", "美股英文(VADER)/A股中文(akshare) + 金融词典情绪", "新闻"],
         ["强弱", "4%", "RSI、布林带%B — 短期超买超卖", "技术"],
     ], columns=["因子", "权重", "看什么", "来源"])
     st.table(wdf)
+    st.caption("以上为近似权重, 系统会按当前可用因子自动归一化; 板块数据取不到时该因子按中性50计, 不影响其余因子。")
     st.markdown("**🌐 大盘环境 (Market Regime)**: 看 QQQ 是否站上 50/200 日线 + 近月动量, "
                 "判断 Risk-On/Off。Risk-On 时全局略加分(×1.05)、Risk-Off 时略减分(×0.93) — "
                 "顺大势、避免在系统性下跌中满仓。")

@@ -76,6 +76,12 @@ try:
 except Exception:
     _HAS_PLUS = False
 
+try:
+    import sector_factor             # 板块热度 (板块热点) 因子 (可选, SECTOR_FACTOR=0 关闭)
+    _HAS_SECTOR = True
+except Exception:
+    _HAS_SECTOR = False
+
 # ----------------------------------------------------------------------------
 # 你的自选股 (可在 app 里改). 名称仅作显示用.
 # ----------------------------------------------------------------------------
@@ -288,10 +294,10 @@ def score_factors(d: pd.DataFrame, bench: pd.Series | None = None) -> dict:
     }
 
 
-# 因子权重 (11 因子: 技术 + 情绪 + 基本面 + 分析师 + 资金流 + 筹码面 + 盈利质量)
+# 因子权重 (12 因子: 技术 + 情绪 + 基本面 + 分析师 + 资金流 + 筹码面 + 盈利质量 + 板块热度)
 WEIGHTS = {"基本面": 0.14, "趋势": 0.13, "分析师": 0.11, "动量": 0.10,
            "盈利质量": 0.10, "资金流": 0.09, "筹码面": 0.08, "风险": 0.08,
-           "相对大盘": 0.07, "新闻情绪": 0.06, "强弱": 0.04}
+           "相对大盘": 0.07, "板块热度": 0.06, "新闻情绪": 0.06, "强弱": 0.04}
 
 # 若存在 calibrated_weights.json (由 calibrate.py 用历史 IC 校准生成), 自动加载覆盖。
 # 删除该文件即可回退到上面的默认权重。保持温和、可解释, 不引入黑盒。
@@ -445,6 +451,17 @@ def _analyze_one(t, name, d, bench, use_news, use_fundamentals, use_earnings,
         try:
             plus_scores, plus_detail = factors_plus.all_plus_factors(t, d)
             factors.update(plus_scores)
+        except Exception:
+            pass
+
+    # 板块热度因子 (板块热点: A股行业当日强弱 / 美股行业ETF动量; 取不到则中性50不计入)
+    if _HAS_SECTOR and sector_factor.enabled():
+        try:
+            f_sec, sec_detail = sector_factor.sector_score(t, name, d,
+                                                           heavy_ok=use_fundamentals)
+            factors["板块热度"] = f_sec
+            if sec_detail:
+                plus_detail["板块热度"] = sec_detail
         except Exception:
             pass
 
