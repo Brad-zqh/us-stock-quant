@@ -362,10 +362,10 @@ def render_detail(code: str, info: dict, currency: str = "$", name: str = ""):
     if news_items:
         dk = f"newsdigest_{code}"
         _creds_d = _llm_creds_from_ui()
-        dc1, dc2 = st.columns([1, 2])
-        gen_d = dc1.button("💡 生成利好/利空速览", key=f"btn_{dk}")
-        auto_d = dc2.checkbox("切换股票自动生成速览", key=f"auto_{dk}", value=False)
-        need_d = gen_d or (auto_d and st.session_state.get(dk + "_for") != code)
+        # 页面打开即自动生成 (每只股票只生成一次并缓存; 富途新闻 + 免费翻译, 无需点按钮)
+        need_d = st.session_state.get(dk + "_for") != code
+        if st.button("🔄 重新生成速览", key=f"btn_{dk}"):
+            need_d = True
         if need_d:
             try:
                 if not hasattr(llm, "llm_news_digest"):
