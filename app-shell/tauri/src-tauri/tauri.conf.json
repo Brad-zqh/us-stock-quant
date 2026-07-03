@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "HaoGe Quant",
+  "productName": "皓哥量化",
   "mainBinaryName": "HaoGeQuant",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "identifier": "com.brad.stockquant",
   "build": {
     "frontendDist": "../www"
