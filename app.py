@@ -247,7 +247,7 @@ with st.sidebar.expander("📤 推送信号报告 (邮件/微信)"):
         if cwx:
             st.write(notify.send_wechat("美股量化信号", md))
 
-_tab_labels = ["🏆 自选股排名", "🔍 个股详情", "🧪 模拟盘", "🤖 AI 交易员", "🔭 美股科技池",
+_tab_labels = ["🔍 个股详情", "🏆 自选股排名", "🧪 模拟盘", "🤖 AI 交易员", "🔭 美股科技池",
                "🇺🇸 美股其他板块", "🇨🇳 A股选股", "💹 指数基金", "📖 模型原理"]
 
 
@@ -269,7 +269,7 @@ if SHOW_ORDERS:
 if CURRENT_USER:
     _tab_labels.append("⚙️ 我的")
 _tabs = st.tabs(_tab_labels)
-tab1, tab2, tab8, tab9, tab3, tab4, tab5, tab7, tab6 = _tabs[:9]
+tab2, tab1, tab8, tab9, tab3, tab4, tab5, tab7, tab6 = _tabs[:9]
 _idx = 9
 tab_orders = None
 if SHOW_ORDERS:
