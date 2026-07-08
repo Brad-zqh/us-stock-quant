@@ -10,7 +10,10 @@ users.json
 orders.json
 futu_loop.log
 futu_loop.stdout.log
+paper_loop_cn.log
+account_dashboard.html
 state/futu_loop_state.json
+state/paper_loop_cn_state.json
 __pycache__/
 *.pyc
 .DS_Store

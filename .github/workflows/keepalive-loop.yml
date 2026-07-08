@@ -1,0 +1,50 @@
+name: Keep Streamlit Awake (loop)
+
+# 自循环保活: 单次运行内每 5 分钟 ping 一次访客入口, 连续跑约 5h40m
+# (GitHub 单 job 上限 6h)。配合 concurrency, 上一轮快结束时 cron 触发的
+# 新一轮会排队, 结束即无缝接上 -> 全天候近似"每 5 分钟"保活,
+# 不再受 GitHub schedule 限流(那种只能几小时一次)影响, 也无需外部 UptimeRobot。
+#
+# public 仓库 Actions 免费且无时长限制, 所以可以长跑。
+# 想彻底关掉保活: 在 Actions 页面停用本 workflow 即可。
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"   # 反复"点火"; 有活跃循环时会排队, 结束即接力
+  workflow_dispatch: {}
+
+# 同一时刻只保留一个活跃循环; 新触发排队, 上一轮结束立即接力
+concurrency:
+  group: streamlit-keepalive
+  cancel-in-progress: false
+
+jobs:
+  ping-loop:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350   # 留出缓冲, 不触碰 6h 硬上限
+    steps:
+      - name: Ping loop (every 5 min for ~5h40m)
+        run: |
+          BASE="https://us-stock-quant-txpjva2xepffh9h2peiaup.streamlit.app"
+          APP="$BASE/?embed=true"       # 访客入口, 返回 200, 真实唤醒/保活
+          HEALTH="$BASE/_stcore/health" # 健康端点, 303=应用被设为需登录
+
+          ITERS=68        # 68 次 * 5 分钟 ≈ 5h40m
+          INTERVAL=300    # 5 分钟
+
+          for i in $(seq 1 $ITERS); do
+            code=$(curl -s -o /dev/null -w "%{http_code}" -A "keepalive-bot" --max-time 60 "$APP" || echo "000")
+            hcode=$(curl -s -o /dev/null -w "%{http_code}" -A "keepalive-bot" --max-time 60 "$HEALTH" || echo "000")
+            ts=$(date -u +"%H:%M:%SZ")
+            echo "[$ts] ping $i/$ITERS  app=$code  health=$hcode"
+
+            if [ "$hcode" = "303" ] || [ "$hcode" = "302" ]; then
+              echo "::warning::应用仍要求登录(health=$hcode)。请到 share.streamlit.io → 该 app → Settings → Sharing 改为 Public, 否则新访客打开会转圈; 保活可维持不休眠但访客进不去。"
+            fi
+
+            # 最后一次不再 sleep, 直接结束让下一轮接力
+            if [ "$i" -lt "$ITERS" ]; then
+              sleep $INTERVAL
+            fi
+          done
+          echo "本轮保活结束, 交由下一轮接力。"
