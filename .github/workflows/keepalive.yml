@@ -1,27 +1,43 @@
 name: Keep Streamlit Awake
 
-# 定时 ping Streamlit 应用的健康端点, 防止免费版休眠导致冷启动。
-# 公开仓库的 Actions 免费; cron 实际触发可能有几分钟延迟, 不影响保活效果。
+# 定时 ping Streamlit 应用, 防止免费版空闲休眠导致冷启动。
+# 同时兼作健康监控: 若应用被设成"需要登录"(私有), 端点会 303 跳到 auth 页,
+# 此时保活无意义, 本工作流会在日志里明确报警提示去后台改回 Public。
+# 注意: GitHub 定时任务实际触发常被限流延迟到数小时一次, 只能"尽力保活";
+# 想要更可靠(每5分钟)建议叠加外部 UptimeRobot / cron-job.org 监控同一 URL。
 
 on:
   schedule:
-    # 每 15 分钟一次 (UTC)。覆盖全天; 想省额度可改成只在活跃时段。
-    - cron: "*/15 * * * *"
-  workflow_dispatch: {}   # 也可手动触发
+    - cron: "*/15 * * * *"   # 期望每15分钟; GitHub 实际可能延迟到数小时
+  workflow_dispatch: {}
 
 jobs:
   ping:
     runs-on: ubuntu-latest
     steps:
-      - name: Ping app health endpoint
+      - name: Ping app & detect auth-gate
         run: |
-          URL="https://us-stock-quant-txpjva2xepffh9h2peiaup.streamlit.app/_stcore/health"
-          echo "Pinging $URL"
+          BASE="https://us-stock-quant-txpjva2xepffh9h2peiaup.streamlit.app"
+          # 真实访客入口(embed 模式), 唤醒/保活用这个更贴近实际
+          APP="$BASE/?embed=true"
+          HEALTH="$BASE/_stcore/health"
+
+          # 1) 健康端点: 200=公开且在线; 303=被鉴权挡住(应用变私有)
+          hcode=$(curl -s -o /dev/null -w "%{http_code}" -A "keepalive-bot" --max-time 60 "$HEALTH" || echo "000")
+          echo "health -> HTTP $hcode"
+          if [ "$hcode" = "303" ] || [ "$hcode" = "302" ]; then
+            echo "::warning::应用要求登录(HTTP $hcode 跳转 auth)。请到 share.streamlit.io → 该 app → Settings → Sharing 改为 Public, 否则网页/手机端会一直转圈无反应, 保活也失效。"
+          fi
+
+          # 2) 唤醒/保活: 连续访问访客入口, 拿到 200 即算成功
           for i in 1 2 3; do
-            code=$(curl -s -o /dev/null -w "%{http_code}" -A "keepalive-bot" --max-time 60 "$URL" || echo "000")
-            echo "Attempt $i -> HTTP $code"
-            if [ "$code" = "200" ]; then exit 0; fi
+            code=$(curl -s -o /dev/null -w "%{http_code}" -A "keepalive-bot" --max-time 60 "$APP" || echo "000")
+            echo "app attempt $i -> HTTP $code"
+            if [ "$code" = "200" ]; then
+              echo "已访问应用入口, 保活完成。"
+              exit 0
+            fi
             sleep 10
           done
-          # 即使非200也不让工作流失败 (休眠唤醒可能需多次)
-          echo "App may be waking; will retry next schedule."
+          echo "应用可能正在唤醒, 下次调度再试 (不判失败)。"
+
