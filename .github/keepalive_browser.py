@@ -18,15 +18,42 @@ HOLD = 25         # 每次停留 25s, 让 websocket 会话计入活跃
 READY_MARKERS = ("皓量化", "个股详情", "配置", "大盘环境")
 
 
+SLEEP_MARKERS = ("gone to sleep", "wake it back up", "Zzzz", "get this app back up")
+WAKE_LABELS = ("Yes, get this app back up!", "get this app back up", "Yes")
+
+
+def try_click_wake(page):
+    """检测到休眠页时点击'Yes, get this app back up!'唤醒按钮。返回是否点到。"""
+    for label in WAKE_LABELS:
+        try:
+            btn = page.get_by_text(label, exact=False).first
+            if btn and btn.is_visible():
+                btn.click(timeout=5000)
+                return True
+        except Exception:
+            continue
+    # 兜底: 遍历所有 button
+    try:
+        for b in page.query_selector_all("button"):
+            t = (b.inner_text() or "")
+            if "back up" in t or "wake" in t.lower():
+                b.click(timeout=5000)
+                return True
+    except Exception:
+        pass
+    return False
+
+
 def wake_once(pw, i):
     browser = pw.chromium.launch(args=["--no-sandbox", "--disable-dev-shm-usage"])
     ctx = browser.new_context(viewport={"width": 1280, "height": 900})
     page = ctx.new_page()
     ok = False
+    clicked = False
     try:
         page.goto(APP, wait_until="domcontentloaded", timeout=90000)
-        # 等应用真正渲染出内容, 最长 ~90s
-        for _ in range(18):
+        # 最长等 ~150s: 期间若遇到休眠页就点唤醒按钮, 直到应用真正渲染出内容
+        for _ in range(30):
             try:
                 body = page.inner_text("body")
             except Exception:
@@ -34,13 +61,18 @@ def wake_once(pw, i):
             if any(m in body for m in READY_MARKERS):
                 ok = True
                 break
+            if any(m in body for m in SLEEP_MARKERS):
+                if try_click_wake(page):
+                    clicked = True
+                    time.sleep(8)   # 点了唤醒, 等它开始启动
+                    continue
             time.sleep(5)
         time.sleep(HOLD)  # 保持会话活跃
         try:
             blen = len(page.inner_text("body") or "")
         except Exception:
             blen = -1
-        print(f"[{i}/{ITERS}] loaded_ok={ok} body_len={blen}", flush=True)
+        print(f"[{i}/{ITERS}] loaded_ok={ok} clicked_wake={clicked} body_len={blen}", flush=True)
     except Exception as e:
         print(f"[{i}/{ITERS}] error: {e}", flush=True)
     finally:
