@@ -357,6 +357,28 @@ def create_pending_orders(orders: list[dict]) -> str | None:
         if r.get("env") == "live_guard"
     ]
     if existing:
+        today = dt.datetime.now().strftime("%Y-%m-%d")
+        same_day = [
+            r for r in existing
+            if str(r.get("created_at", "")).startswith(today)
+        ]
+        if not same_day:
+            for r in existing:
+                orderstore.set_status(
+                    r["id"], orderstore.STATUS_SKIPPED,
+                    "被新的每日实盘控仓计划替代; 未执行")
+            _log(f"已跳过 {len(existing)} 笔过期待确认单, 将创建新的每日计划。")
+        else:
+            batches = sorted({r.get("batch_id", "") for r in same_day if r.get("batch_id")})
+            batch = batches[-1] if batches else None
+            _log(f"今日已有 {len(same_day)} 笔实盘控仓待确认单, 不重复创建。"
+                 + (f" 当前批次={batch}" if batch else ""))
+            return batch
+    existing = [
+        r for r in orderstore.list_pending(email)
+        if r.get("env") == "live_guard"
+    ]
+    if existing:
         batches = sorted({r.get("batch_id", "") for r in existing if r.get("batch_id")})
         batch = batches[-1] if batches else None
         _log(f"已有 {len(existing)} 笔实盘控仓待确认单, 不重复创建。"
