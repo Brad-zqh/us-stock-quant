@@ -24,6 +24,7 @@ import smtplib
 import ssl
 from email.mime.text import MIMEText
 from email.header import Header
+from email import charset as email_charset
 from pathlib import Path
 
 import engine
@@ -90,7 +91,11 @@ def send_email(subject: str, body: str, cfg: dict | None = None) -> str:
     required = ("smtp", "user", "password", "to")
     if not all(cfg.get(k) for k in required):
         return "❌ 邮件未配置 (需 smtp/user/password/to)"
-    msg = MIMEText(body, "plain", "utf-8")
+    cs = email_charset.Charset("utf-8")
+    cs.body_encoding = email_charset.BASE64
+    cs.header_encoding = email_charset.BASE64
+    msg = MIMEText(body, "plain", cs)
+    msg.set_charset("utf-8")
     msg["Subject"] = Header(subject, "utf-8")
     msg["From"] = cfg["user"]
     msg["To"] = cfg["to"]
