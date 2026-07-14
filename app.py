@@ -425,21 +425,6 @@ try:
 except Exception:
     _pending_order_count = 0
 
-_order_tab_label = "📱 待确认"
-if _pending_order_count:
-    _order_tab_label = f"📱 待确认({_pending_order_count})"
-
-_tab_labels = ["🔍 个股详情", "🏆 自选股排名", _order_tab_label,
-               "🧪 模拟盘", "🤖 AI 交易员", "🔭 美股科技池",
-               "🇺🇸 美股其他板块", "🇨🇳 A股选股", "💹 指数基金", "📖 模型原理"]
-if CURRENT_USER:
-    _tab_labels.append("⚙️ 我的")
-_tabs = st.tabs(_tab_labels)
-tab2, tab1, tab_orders, tab8, tab9, tab3, tab4, tab5, tab7, tab6 = _tabs[:10]
-_idx = 10
-tab_me = _tabs[_idx] if CURRENT_USER else None
-
-
 def _render_pending_orders(key_prefix: str = "orders") -> None:
     st.subheader("📱 待确认交易")
     st.caption(f"账户: {ORDERS_EMAIL}　|　信箱后端: {orderstore.backend_name()}")
@@ -518,7 +503,22 @@ except Exception:
 if _confirm_deep_link:
     st.info("这是邮件打开的确认入口。请逐笔确认或拒绝; 未确认不会下实盘单。")
     _render_pending_orders(key_prefix="deep_confirm")
-    st.divider()
+    st.stop()
+
+
+_order_tab_label = "📱 待确认"
+if _pending_order_count:
+    _order_tab_label = f"📱 待确认({_pending_order_count})"
+
+_tab_labels = ["🔍 个股详情", "🏆 自选股排名", _order_tab_label,
+               "🧪 模拟盘", "🤖 AI 交易员", "🔭 美股科技池",
+               "🇺🇸 美股其他板块", "🇨🇳 A股选股", "💹 指数基金", "📖 模型原理"]
+if CURRENT_USER:
+    _tab_labels.append("⚙️ 我的")
+_tabs = st.tabs(_tab_labels)
+tab2, tab1, tab_orders, tab8, tab9, tab3, tab4, tab5, tab7, tab6 = _tabs[:10]
+_idx = 10
+tab_me = _tabs[_idx] if CURRENT_USER else None
 
 
 def _render_screen(scr, currency="$"):
