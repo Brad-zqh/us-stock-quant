@@ -1,10 +1,10 @@
 $ErrorActionPreference = "Stop"
 
-$taskName = "皓量化-实盘控仓执行器"
+$taskName = "BradQuant-LiveGuard-Executor"
 $task = Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
 if ($task) {
     Unregister-ScheduledTask -TaskName $taskName -Confirm:$false
-    Write-Host "已卸载计划任务: $taskName"
+    Write-Host "Uninstalled scheduled task: $taskName"
 } else {
-    Write-Host "未找到计划任务: $taskName"
+    Write-Host "Scheduled task not found: $taskName"
 }
