@@ -23,6 +23,7 @@ import hashlib
 import datetime as dt
 
 _LOCAL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "users.json")
+_CONFIG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.json")
 
 # profile 对外暴露时要隐藏的敏感字段
 _SECRET_FIELDS = ("pw_hash", "salt")
@@ -56,7 +57,26 @@ def _get_secret(name: str, default: str = "") -> str:
             return str(v)
     except Exception:
         pass
-    return os.getenv(name, default)
+    v = os.getenv(name, "")
+    if v:
+        return v
+    try:
+        with open(_CONFIG_PATH, "r", encoding="utf-8") as f:
+            cfg = json.load(f)
+        if name in cfg and cfg[name]:
+            return str(cfg[name])
+        supabase = cfg.get("supabase", {}) or {}
+        aliases = {
+            "SUPABASE_URL": "url",
+            "SUPABASE_KEY": "key",
+            "SUPABASE_SERVICE_KEY": "service_key",
+        }
+        key = aliases.get(name)
+        if key and supabase.get(key):
+            return str(supabase[key])
+    except Exception:
+        pass
+    return default
 
 
 def admin_emails() -> set[str]:

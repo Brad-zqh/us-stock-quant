@@ -407,10 +407,6 @@ with st.sidebar.expander("📤 推送信号报告 (邮件/微信)"):
         if cwx:
             st.write(notify.send_wechat("美股量化信号", md))
 
-_tab_labels = ["🔍 个股详情", "🏆 自选股排名", "🧪 模拟盘", "🤖 AI 交易员", "🔭 美股科技池",
-               "🇺🇸 美股其他板块", "🇨🇳 A股选股", "💹 指数基金", "📖 模型原理"]
-
-
 def _orders_email():
     """待确认信箱归属的账户: 登录时用登录邮箱; 否则用 FUTU_USER_EMAIL 或管理员邮箱 (与 futu_trader 一致)。"""
     if CURRENT_USER:
@@ -419,22 +415,110 @@ def _orders_email():
     if e:
         return e
     admins = sorted(userstore.admin_emails())
-    return admins[0] if admins else ""
+    return admins[0] if admins else "zhaoqiuhao@zju.edu.cn"
 
 
 ORDERS_EMAIL = _orders_email()
 SHOW_ORDERS = bool(ORDERS_EMAIL)   # 能识别账户才显示"待确认"tab (未配置则隐藏, 零打扰)
-if SHOW_ORDERS:
-    _tab_labels.append("📱 待确认")
+try:
+    _pending_order_count = len(orderstore.list_pending(ORDERS_EMAIL)) if SHOW_ORDERS else 0
+except Exception:
+    _pending_order_count = 0
+
+_order_tab_label = "📱 待确认"
+if _pending_order_count:
+    _order_tab_label = f"📱 待确认({_pending_order_count})"
+
+_tab_labels = ["🔍 个股详情", "🏆 自选股排名", _order_tab_label,
+               "🧪 模拟盘", "🤖 AI 交易员", "🔭 美股科技池",
+               "🇺🇸 美股其他板块", "🇨🇳 A股选股", "💹 指数基金", "📖 模型原理"]
 if CURRENT_USER:
     _tab_labels.append("⚙️ 我的")
 _tabs = st.tabs(_tab_labels)
-tab2, tab1, tab8, tab9, tab3, tab4, tab5, tab7, tab6 = _tabs[:9]
-_idx = 9
-tab_orders = None
-if SHOW_ORDERS:
-    tab_orders = _tabs[_idx]; _idx += 1
+tab2, tab1, tab_orders, tab8, tab9, tab3, tab4, tab5, tab7, tab6 = _tabs[:10]
+_idx = 10
 tab_me = _tabs[_idx] if CURRENT_USER else None
+
+
+def _render_pending_orders(key_prefix: str = "orders") -> None:
+    st.subheader("📱 待确认交易")
+    st.caption(f"账户: {ORDERS_EMAIL}　|　信箱后端: {orderstore.backend_name()}")
+    if not orderstore.using_supabase():
+        st.info("提示: 未配置 Supabase 时, 只能读到本机 orders.json (云端看不到)。"
+                "要在手机上远程确认电脑机器人推来的单, 请让管理员配置 Supabase。")
+
+    c_a, c_b, c_c = st.columns([1, 1, 1])
+    if c_a.button("🔄 刷新", use_container_width=True, key=f"{key_prefix}_refresh"):
+        st.rerun()
+
+    pend = orderstore.list_pending(ORDERS_EMAIL)
+    if c_b.button(f"✅ 全部确认 ({len(pend)})", type="primary",
+                  use_container_width=True, disabled=not pend,
+                  key=f"{key_prefix}_approve_all"):
+        n = orderstore.decide_all(ORDERS_EMAIL, approve=True)
+        st.success(f"已确认 {n} 笔, 电脑端执行器运行时会提交到富途。")
+        st.rerun()
+    if c_c.button("🚫 全部拒绝", use_container_width=True, disabled=not pend,
+                  key=f"{key_prefix}_reject_all"):
+        n = orderstore.decide_all(ORDERS_EMAIL, approve=False)
+        st.warning(f"已拒绝 {n} 笔。")
+        st.rerun()
+
+    if not pend:
+        st.success("当前没有待确认的交易。电脑端跑 `python futu_live_guard.py --push` 后, 实盘控仓拟下单会出现在这里。")
+    else:
+        st.markdown(f"#### 共 {len(pend)} 笔待确认")
+        for o in pend:
+            side_cn = "🟢 买入" if o["side"] == "BUY" else "🔴 卖出"
+            envcn = {"paper": "模拟盘", "live": "实盘", "live_guard": "实盘控仓",
+                     "dry": "演示"}.get(o.get("env"), o.get("env", ""))
+            qty_txt = f"{float(o['qty']):.4f}".rstrip("0").rstrip(".")
+            with st.container():
+                cc1, cc2, cc3 = st.columns([3, 1, 1])
+                cc1.markdown(
+                    f"**{side_cn} {o['ticker']}** {o.get('name','')}　`{envcn}`  \n"
+                    f"{qty_txt} 股 × ${o['price']:.2f} = **${o.get('amount',0):,.0f}**  \n"
+                    f"<span style='color:#888'>{o.get('reason','')}</span>",
+                    unsafe_allow_html=True)
+                if cc2.button("确认", key=f"{key_prefix}_ok_{o['id']}", type="primary",
+                              use_container_width=True):
+                    orderstore.set_status(o["id"], orderstore.STATUS_APPROVED)
+                    st.rerun()
+                if cc3.button("拒绝", key=f"{key_prefix}_no_{o['id']}", use_container_width=True):
+                    orderstore.set_status(o["id"], orderstore.STATUS_REJECTED)
+                    st.rerun()
+                st.divider()
+
+    with st.expander("📜 最近交易记录"):
+        recent = orderstore.list_recent(ORDERS_EMAIL, limit=30)
+        if not recent:
+            st.caption("暂无记录。")
+        else:
+            import pandas as _pd
+            _emoji = {"done": "✅已执行", "rejected": "🚫已拒绝", "failed": "❌失败",
+                      "pending": "⏳待确认", "approved": "🟡已确认待执行",
+                      "executing": "🔵执行中", "skipped": "⏭️跳过"}
+            _rows = [{
+                "时间": r.get("created_at", ""),
+                "方向": "买" if r["side"] == "BUY" else "卖",
+                "代码": r["ticker"], "股数": r["qty"], "价格": r["price"],
+                "状态": _emoji.get(r.get("status"), r.get("status", "")),
+                "结果": r.get("result", ""),
+            } for r in recent]
+            st.dataframe(_pd.DataFrame(_rows), use_container_width=True,
+                         height=min(80 + 34 * len(_rows), 420))
+
+    st.caption("⚠️ 半自动: 你在此确认后, 正在运行的电脑执行器才会真正下单。全部为工具, 非投资建议。")
+
+
+try:
+    _confirm_deep_link = str(st.query_params.get("confirm", "")).lower() in ("1", "true", "yes")
+except Exception:
+    _confirm_deep_link = False
+if _confirm_deep_link:
+    st.info("这是邮件打开的确认入口。请逐笔确认或拒绝; 未确认不会下实盘单。")
+    _render_pending_orders(key_prefix="deep_confirm")
+    st.divider()
 
 
 def _render_screen(scr, currency="$"):
@@ -909,7 +993,7 @@ with tab9:
         watch_ai = engine.A_SHARE_WATCHLIST
         cur = "¥"
         acc_path = os.path.join(os.path.dirname(paper._DEFAULT_PATH), "paper_account_cn.json")
-        default_cash = 1_000_000
+        default_cash = 30_000
         acc_key, lt_key = "acc_cn", "last_trades_cn"
         dl_name = "paper_account_cn.json"
         st.caption(f"当前池: A股龙头 {len(watch_ai)} 只 · 基准 沪深300 · 价格单位 ¥")
@@ -1286,67 +1370,4 @@ if tab_me is not None:
 # ================================================================ TAB 待确认交易 (手机端半自动)
 if tab_orders is not None:
     with tab_orders:
-        st.subheader("📱 待确认交易")
-        st.caption(f"账户: {ORDERS_EMAIL}　|　信箱后端: {orderstore.backend_name()}")
-        if not orderstore.using_supabase():
-            st.info("提示: 未配置 Supabase 时, 只能读到本机 orders.json (云端看不到)。"
-                    "要在手机上远程确认电脑机器人推来的单, 请让管理员配置 Supabase。")
-
-        c_a, c_b, c_c = st.columns([1, 1, 1])
-        if c_a.button("🔄 刷新", use_container_width=True):
-            st.rerun()
-
-        pend = orderstore.list_pending(ORDERS_EMAIL)
-        if c_b.button(f"✅ 全部确认 ({len(pend)})", type="primary",
-                      use_container_width=True, disabled=not pend):
-            n = orderstore.decide_all(ORDERS_EMAIL, approve=True)
-            st.success(f"已确认 {n} 笔, 电脑端将自动下单。")
-            st.rerun()
-        if c_c.button("🚫 全部拒绝", use_container_width=True, disabled=not pend):
-            n = orderstore.decide_all(ORDERS_EMAIL, approve=False)
-            st.warning(f"已拒绝 {n} 笔。")
-            st.rerun()
-
-        if not pend:
-            st.success("当前没有待确认的交易。电脑端跑 `python futu_trader.py --paper --push` 后, 拟下单会出现在这里。")
-        else:
-            st.markdown(f"#### 共 {len(pend)} 笔待确认")
-            for o in pend:
-                side_cn = "🟢 买入" if o["side"] == "BUY" else "🔴 卖出"
-                envcn = {"paper": "模拟盘", "live": "实盘", "dry": "演示"}.get(o.get("env"), o.get("env", ""))
-                with st.container():
-                    cc1, cc2, cc3 = st.columns([3, 1, 1])
-                    cc1.markdown(
-                        f"**{side_cn} {o['ticker']}** {o.get('name','')}　`{envcn}`  \n"
-                        f"{o['qty']} 股 × ${o['price']:.2f} = **${o.get('amount',0):,.0f}**  \n"
-                        f"<span style='color:#888'>{o.get('reason','')}</span>",
-                        unsafe_allow_html=True)
-                    if cc2.button("确认", key=f"ok_{o['id']}", type="primary",
-                                  use_container_width=True):
-                        orderstore.set_status(o["id"], orderstore.STATUS_APPROVED)
-                        st.rerun()
-                    if cc3.button("拒绝", key=f"no_{o['id']}", use_container_width=True):
-                        orderstore.set_status(o["id"], orderstore.STATUS_REJECTED)
-                        st.rerun()
-                    st.divider()
-
-        # 最近历史
-        with st.expander("📜 最近交易记录"):
-            recent = orderstore.list_recent(ORDERS_EMAIL, limit=30)
-            if not recent:
-                st.caption("暂无记录。")
-            else:
-                import pandas as _pd
-                _emoji = {"done": "✅已执行", "rejected": "🚫已拒绝", "failed": "❌失败",
-                          "pending": "⏳待确认", "approved": "🟡已确认待执行", "skipped": "⏭️跳过"}
-                _rows = [{
-                    "时间": r.get("created_at", ""),
-                    "方向": "买" if r["side"] == "BUY" else "卖",
-                    "代码": r["ticker"], "股数": r["qty"], "价格": r["price"],
-                    "状态": _emoji.get(r.get("status"), r.get("status", "")),
-                    "结果": r.get("result", ""),
-                } for r in recent]
-                st.dataframe(_pd.DataFrame(_rows), use_container_width=True,
-                             height=min(80 + 34 * len(_rows), 420))
-
-        st.caption("⚠️ 半自动: 你在此确认后, 运行中的电脑机器人才会真正下单。全部为工具, 非投资建议。")
+        _render_pending_orders()

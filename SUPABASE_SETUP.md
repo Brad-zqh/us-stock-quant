@@ -38,7 +38,7 @@ create table if not exists orders (
   side        text,
   ticker      text,
   name        text,
-  qty         integer,
+  qty         double precision,
   price       double precision,
   amount      double precision,
   reason      text,
@@ -68,6 +68,7 @@ Streamlit Cloud → 你的 App → **Settings → Secrets**，粘贴：
 ```toml
 SUPABASE_URL = "https://xxxx.supabase.co"
 SUPABASE_KEY = "你的 anon public key"
+BRAD_QUANT_CONFIRM_URL = "https://你的Streamlit域名.streamlit.app/?confirm=1"
 
 # 多用户登录 (可选, 想开登录才填)
 REQUIRE_LOGIN = "1"
@@ -88,6 +89,19 @@ LLM_SENTIMENT = "1"                        # 可选: 开启后用大模型给新
 $env:SUPABASE_URL    = "https://xxxx.supabase.co"
 $env:SUPABASE_KEY    = "你的 anon public key"
 $env:FUTU_USER_EMAIL = "你的邮箱@xxx.com"   # 机器人代表哪个账户推单 (跟你登录网站的邮箱一致)
+$env:BRAD_QUANT_CONFIRM_URL = "https://你的Streamlit域名.streamlit.app/?confirm=1"
+```
+
+也可以把上面配置写进本机 `config.json`（该文件已 gitignore，不会进仓库）：
+
+```json
+{
+  "confirm_url": "https://你的Streamlit域名.streamlit.app/?confirm=1",
+  "supabase": {
+    "url": "https://xxxx.supabase.co",
+    "key": "你的 anon public key"
+  }
+}
 ```
 
 ## 完成！怎么用
@@ -100,13 +114,44 @@ $env:FUTU_USER_EMAIL = "你的邮箱@xxx.com"   # 机器人代表哪个账户推
 ### 手机确认交易（半自动）
 1. **电脑**（Windows，FutuOpenD 已开）：
    ```powershell
-   python futu_trader.py --paper --push      # 模拟盘 + 手机确认
+   python futu_live_guard.py --push          # 生成实盘控仓建议 + 推送到手机确认页
    ```
-   它算出拟下单 → 推到信箱 → 开始等你确认（每 10 秒查一次，最长 30 分钟）。
+   它算出拟下单 → 推到云端信箱 → 邮件/微信带确认链接。
 2. **手机**：打开 App →「📱 待确认」→ 看到刚推来的单 → 逐笔或「✅ 全部确认」。
-3. **电脑**：看到你确认，自动在富途模拟盘下单，手机端状态变「✅已执行」。
+3. **电脑**：常驻执行器看到你确认，自动通过 Futu OpenD 下单，手机端状态变「✅已执行」。
 
-> 想真钱：把 `--paper` 换 `--live`，并设 `$env:FUTU_ALLOW_LIVE="1"`。务必先模拟盘跑顺！
+实盘执行器（只执行你已确认的 `live_guard` 订单）：
+
+```powershell
+$env:FUTU_ALLOW_LIVE = "1"
+python futu_live_guard.py --executor-loop
+```
+
+如果 Windows 关机或 Futu OpenD 不在线，已确认订单会停在「已确认待执行」，等执行器上线后再处理。不要让多台电脑同时常驻执行；即使双开，代码也会先领取订单锁再下单，避免重复提交。
+
+如果你之前已经在本机 `orders.json` 里生成过待确认单，配置好 Supabase 后可迁移一次：
+
+```powershell
+python scripts/migrate_local_orders_to_supabase.py
+```
+
+Windows 开机常驻执行器推荐安装计划任务：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\install_live_guard_executor_task.ps1
+```
+
+卸载：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\uninstall_live_guard_executor_task.ps1
+```
+
+手动临时静默启动也可用：
+
+```powershell
+scripts\run_live_guard_executor_hidden.vbs
+```
 
 ## 安全说明
 - 表用 anon key + 关 RLS：适合你和朋友小规模私用，**不要把 URL/Key 贴到公开地方**。

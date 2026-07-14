@@ -97,7 +97,7 @@ def send_email(subject: str, body: str, cfg: dict | None = None) -> str:
     port = int(cfg.get("port", 465))
     try:
         ctx = ssl.create_default_context()
-        if port == 465:
+        if port in (465, 994):
             with smtplib.SMTP_SSL(cfg["smtp"], port, context=ctx) as s:
                 s.login(cfg["user"], cfg["password"])
                 s.sendmail(cfg["user"], [cfg["to"]], msg.as_string())
@@ -120,6 +120,7 @@ def send_wechat(title: str, md_body: str, key: str | None = None) -> str:
         return "❌ 微信未配置 (需 Server酱 SendKey)"
     import urllib.request
     import urllib.parse
+    import urllib.error
     url = f"https://sctapi.ftqq.com/{key}.send"
     data = urllib.parse.urlencode({"title": title, "desp": md_body}).encode()
     try:
@@ -128,6 +129,13 @@ def send_wechat(title: str, md_body: str, key: str | None = None) -> str:
         if resp.get("code") == 0:
             return "✅ 微信推送成功"
         return f"❌ 微信推送失败: {resp.get('message')}"
+    except urllib.error.HTTPError as e:
+        try:
+            detail = json.loads(e.read().decode(errors="replace"))
+            msg = detail.get("info") or detail.get("message") or str(e)
+        except Exception:
+            msg = str(e)
+        return f"❌ 微信推送失败: {msg}"
     except Exception as e:
         return f"❌ 微信推送失败: {e}"
 

@@ -23,12 +23,13 @@ _LOCAL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "orders.j
 
 STATUS_PENDING = "pending"
 STATUS_APPROVED = "approved"
+STATUS_EXECUTING = "executing"
 STATUS_REJECTED = "rejected"
 STATUS_DONE = "done"
 STATUS_FAILED = "failed"
 STATUS_SKIPPED = "skipped"
 
-_OPEN = (STATUS_PENDING, STATUS_APPROVED)
+_OPEN = (STATUS_PENDING, STATUS_APPROVED, STATUS_EXECUTING)
 
 
 def _now() -> str:
@@ -81,6 +82,15 @@ def _sb_patch(order_id: str, fields: dict) -> None:
     r.raise_for_status()
 
 
+def _sb_patch_where(qs: str, fields: dict) -> list[dict]:
+    import requests
+    r = requests.patch(userstore._sb_url(f"orders?{qs}"),
+                       headers=userstore._sb_headers(),
+                       data=json.dumps(fields), timeout=15)
+    r.raise_for_status()
+    return r.json()
+
+
 # ---------------------------------------------------------------- 对外 API
 def create_orders(user_email: str, orders: list[dict], env: str = "paper") -> str:
     """写入一批待确认单, 返回 batch_id。orders 每项含 side/ticker/qty/price/amount/reason。"""
@@ -95,7 +105,7 @@ def create_orders(user_email: str, orders: list[dict], env: str = "paper") -> st
             "side": o["side"],
             "ticker": o["ticker"],
             "name": o.get("name", ""),
-            "qty": int(o["qty"]),
+            "qty": float(o["qty"]),
             "price": float(o["price"]),
             "amount": float(o.get("amount", o["qty"] * o["price"])),
             "reason": o.get("reason", ""),
@@ -124,6 +134,24 @@ def list_pending(user_email: str) -> list[dict]:
             f"user_email=eq.{user_email}&status=eq.{STATUS_PENDING}&order=created_at.asc")
     return [r for r in _local_load()
             if r.get("user_email") == user_email and r.get("status") == STATUS_PENDING]
+
+
+def list_approved(user_email: str, env: str | None = None) -> list[dict]:
+    """某用户所有已确认、等待执行的订单。电脑执行器轮询使用。"""
+    user_email = (user_email or "").strip().lower()
+    if using_supabase():
+        qs = f"user_email=eq.{user_email}&status=eq.{STATUS_APPROVED}"
+        if env:
+            qs += f"&env=eq.{env}"
+        return _sb_query(qs + "&order=created_at.asc")
+    rows = [
+        r for r in _local_load()
+        if r.get("user_email") == user_email and r.get("status") == STATUS_APPROVED
+    ]
+    if env:
+        rows = [r for r in rows if r.get("env") == env]
+    rows.sort(key=lambda r: r.get("created_at", ""))
+    return rows
 
 
 def list_recent(user_email: str, limit: int = 30) -> list[dict]:
@@ -159,6 +187,29 @@ def set_status(order_id: str, status: str, result: str = "") -> bool:
                     break
             _local_save(rows)
         return True
+    except Exception:
+        return False
+
+
+def claim_for_execution(order_id: str, worker_id: str) -> bool:
+    """把 approved 订单原子领取为 executing。成功领取才允许提交到券商。"""
+    note = f"claimed by {worker_id} at {_now()}"
+    fields = {"status": STATUS_EXECUTING, "decided_at": _now(), "result": note}
+    try:
+        if using_supabase():
+            rows = _sb_patch_where(
+                f"id=eq.{order_id}&status=eq.{STATUS_APPROVED}", fields)
+            return bool(rows)
+        rows = _local_load()
+        claimed = False
+        for r in rows:
+            if r.get("id") == order_id and r.get("status") == STATUS_APPROVED:
+                r.update(fields)
+                claimed = True
+                break
+        if claimed:
+            _local_save(rows)
+        return claimed
     except Exception:
         return False
 
