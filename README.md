@@ -1,117 +1,168 @@
-# 📈 美股量化选股看板 (US Stock Quant)
+# Brad Quant: Multi-Factor Equity Research Platform
 
-多因子综合打分 + 择时信号 + 基本面/分析师/资金流 + 新闻情绪 + ATR 风控 + 回测，
-配 Streamlit 交互界面。为「富途牛牛手动下单」场景设计：给你每只票的
-**信号、建议仓位、止损价、目标价**，并在你持仓之外扫描高科技股票池找机会。
+[![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![Streamlit](https://img.shields.io/badge/Streamlit-App-FF4B4B?logo=streamlit&logoColor=white)](https://streamlit.io/)
+[![Research Only](https://img.shields.io/badge/Use-Research%20Only-6A5ACD)](#limitations-and-disclaimer)
 
-> ⚠️ 仅作量化研究参考，**不构成投资建议**。数据非实时（yfinance 日线 / 约延迟15分钟）。
+Brad Quant is a research-oriented, explainable multi-factor equity analysis platform for U.S. equities and China A-shares. It combines technical signals, company fundamentals, analyst expectations, capital flows, ownership structure, earnings quality, sector strength, and news sentiment in a unified screening and backtesting workflow.
 
-## 在线体验
+Rather than attempting to predict exact future prices, the system ranks securities by their current multi-dimensional profile, converts the scores into interpretable signals, and attaches volatility-aware position sizing and risk controls.
 
-部署到 Streamlit Cloud 后即有公开网址，可分享家人朋友（见底部「部署」）。
-本地运行：
+**Live application:** [Open Brad Quant on Streamlit](https://us-stock-quant-txpjva2xepffh9h2peiaup.streamlit.app)
+
+## Research Objectives
+
+- Build an interpretable alternative to opaque stock-selection models.
+- Compare heterogeneous signals across U.S. and Chinese equity markets.
+- Evaluate ranking and timing rules through historical backtesting.
+- Separate data acquisition, factor construction, portfolio logic, and presentation.
+- Provide transparent signal attribution instead of treating model output as a black box.
+
+## Key Capabilities
+
+- **Multi-factor screening:** ranks watchlists, U.S. technology stocks, non-technology sectors, China A-share leaders, and index ETFs.
+- **Cross-market data layer:** uses Futu OpenD when available and falls back to `yfinance`; China-specific data are supported through `akshare`.
+- **Technical analysis:** SMA, EMA, MACD, RSI, Bollinger Bands, ATR, ADX/DI, KDJ, MFI, OBV, CMF, momentum, and 52-week breakout measures.
+- **Fundamental and expectations data:** valuation, revenue growth, profitability, analyst ratings, target-price dispersion, and earnings revisions.
+- **Alternative signals:** institutional ownership, insider ownership, short interest, earnings surprises, sector strength, and financial-news sentiment.
+- **Risk management:** ATR-based stop levels, target levels, volatility-adjusted position sizing, and a per-security allocation cap.
+- **Backtesting:** annualized return, Sharpe ratio, maximum drawdown, win rate, and strategy-versus-buy-and-hold comparisons.
+- **Explainability:** plain-language attribution of bullish drivers, bearish risks, technical context, and model limitations.
+- **Paper trading:** persistent simulated accounts, rule-based rebalancing, transaction logs, and equity curves.
+- **Multi-platform delivery:** Streamlit web app plus PWA, Capacitor mobile shells, and Tauri desktop shells.
+
+## Methodology
+
+The composite score is calculated from 12 interpretable factor groups. The values below are relative weight units rather than final percentages; they are normalized at runtime, including when a data source or optional factor is unavailable.
+
+| Factor | Relative weight | Representative inputs | Implementation |
+|---|---:|---|---|
+| Fundamentals | 14 | PEG, revenue growth, gross margin, ROE, net margin | `factors_plus.py` |
+| Trend | 13 | Price relative to SMA50/SMA200, moving-average crossovers, ADX | `engine.py` |
+| Analyst expectations | 11 | Consensus rating, target-price upside, analyst coverage | `factors_plus.py` |
+| Momentum | 10 | MACD, one-month and six-month momentum, KDJ | `engine.py` |
+| Earnings quality | 10 | Earnings surprises, earnings growth, forward EPS revisions | `factors_plus.py` |
+| Money flow | 9 | OBV, Chaikin Money Flow, MFI, volume-confirmed breakouts | `factors_plus.py` |
+| Ownership and positioning | 8 | Institutional ownership, insider ownership, short interest | `factors_plus.py` |
+| Risk | 8 | Annualized volatility | `engine.py` |
+| Relative strength | 7 | Performance relative to the market benchmark | `engine.py` |
+| Sector strength | 6 | China industry breadth or U.S. sector-ETF momentum | `sector_factor.py` |
+| News sentiment | 6 | VADER and market-specific financial sentiment lexicons | `news.py`, `cn_news.py` |
+| Oscillator strength | 4 | RSI and Bollinger %B | `engine.py` |
+
+The model also applies a market-regime adjustment based on benchmark trend and momentum. Risk-on conditions moderately increase composite scores, while risk-off conditions reduce them. This adjustment is intended to limit aggressive exposure during broad market deterioration.
+
+### Signal Mapping
+
+| Composite score | Signal | Interpretation |
+|---:|---|---|
+| 70 or above | Strong Buy | Broad positive factor agreement |
+| 58–69 | Buy | Moderately positive profile |
+| 45–57 | Hold | Mixed or neutral evidence |
+| 35–44 | Reduce | Deteriorating factor profile |
+| Below 35 | Sell | Broad negative factor agreement |
+
+### Risk Rules
+
+- Indicative stop level: current price minus `2.5 × ATR`.
+- Indicative target level: current price plus `4 × ATR`.
+- Position size: adjusted by composite score and realized volatility.
+- Maximum allocation: 25% per security in the default paper-trading configuration.
+- Near-term earnings events are flagged because of elevated gap risk.
+
+## Application Modules
+
+The Streamlit interface currently includes:
+
+1. **Stock Details** — symbol and company-name search, candlestick charts, factor radar, news, risk levels, and backtests.
+2. **Watchlist Ranking** — comparable scores, signals, risk levels, and factor heatmaps.
+3. **Portfolio Backtest** — strategy-level evaluation of the current watchlist.
+4. **AI Trader** — rule-based paper trading with optional LLM-generated research commentary.
+5. **U.S. Technology Screener** — thematic screening across major technology groups.
+6. **U.S. Sector Screener** — value, defensive, cyclical, healthcare, financial, consumer, energy, industrial, and communication groups.
+7. **China A-Share Screener** — sector leaders across major Shanghai and Shenzhen industries.
+8. **Index and ETF Screener** — U.S. and Chinese index timing and rotation analysis.
+9. **Methodology** — an in-app explanation of the factors, signal rules, and limitations.
+
+## Architecture
+
+```text
+Market data and metadata
+        │
+        ├── Futu OpenD / yfinance / akshare
+        ▼
+Feature and factor construction
+        │
+        ├── technical indicators
+        ├── fundamentals and analyst expectations
+        ├── earnings, ownership, sector, and sentiment signals
+        ▼
+Composite scoring and market-regime adjustment
+        ▼
+Risk rules, backtesting, and paper-trading logic
+        ▼
+Streamlit web interface and mobile/desktop shells
+```
+
+The analytical core is kept in plain Python modules so that factor calculations and portfolio logic can be tested independently of the user interface.
+
+## Project Structure
+
+| Path | Purpose |
+|---|---|
+| `engine.py` | Data orchestration, indicators, composite scoring, risk rules, and backtesting |
+| `quotes.py` | Market-data abstraction with Futu-to-yfinance fallback |
+| `factors_plus.py` | Fundamentals, analyst expectations, earnings quality, ownership, and money-flow factors |
+| `sector_factor.py` | Sector-strength factor |
+| `news.py`, `cn_news.py`, `futu_news.py` | Market-specific news acquisition and sentiment analysis |
+| `universe.py`, `ashare.py`, `funds.py` | U.S. stocks, China A-shares, and ETF screening universes |
+| `explain.py` | Human-readable signal attribution |
+| `paper.py` | Paper-account state, valuation, transactions, and rebalancing |
+| `futu_trader.py`, `futu_loop.py` | Optional Futu trading integration and scheduled execution |
+| `app.py` | Streamlit application |
+| `app-shell/` | PWA, Capacitor, and Tauri wrappers |
+
+## Local Setup
+
+### Requirements
+
+- Python 3.11 or later
+- Internet access for cloud market-data providers
+- Optional: Futu OpenD on `127.0.0.1:11111` for local Futu market data or trading integration
+
+### Installation
+
+```bash
+git clone https://github.com/Brad-zqh/us-stock-quant.git
+cd us-stock-quant
+python -m venv .venv
+```
+
+Activate the environment, then install dependencies and launch the app:
 
 ```bash
 pip install -r requirements.txt
-streamlit run app.py          # 浏览器打开 http://localhost:8501
+streamlit run app.py
 ```
 
-## 五个页面
+Open `http://localhost:8501` in a browser.
 
-1. **🏆 自选股排名** — 你持仓的综合分 / 信号 / 风控方案一览，颜色热力图
-2. **🔍 个股详情** — K线+均线+MACD+RSI、因子雷达、基本面/分析师/资金流明细、新闻情绪、回测
-3. **🔭 美股科技池** — 扫描 ~45 只高科技龙头，推荐你持仓之外的买入候选
-4. **🇺🇸 美股其他板块** — 金融/医疗/消费/能源工业/通信媒体，给科技仓位做分散
-5. **🇨🇳 A股选股** — 沪深各行业龙头（白酒/金融/新能源/半导体/医药/工业），同一套打分
+## Configuration and Secrets
 
-> A股说明：价格+基本面可用；分析师评级部分缺失时取中性；英文新闻因子对A股不适用，故关闭。
+Copy `config.example.json` to `config.json` for optional local integrations. The local configuration file is excluded from Git and must never contain credentials intended for public distribution.
 
-## 11 因子综合打分（0~100）+ 大盘环境微调
+For Streamlit Cloud, store API keys and other credentials in Streamlit Secrets rather than in the repository. Supported optional integrations include LLM-generated commentary, email notifications, ServerChan notifications, and Futu OpenD.
 
-| 因子 | 权重 | 看什么 | 模块 |
-|------|------|--------|------|
-| 基本面 | 14% | PEG、营收增速、毛利率、ROE、净利率 | factors_plus.py |
-| 趋势 | 13% | 价格 vs SMA50/200、金叉死叉、ADX趋势强度 | engine.py |
-| 分析师 | 11% | 华尔街评级均值、目标价上行空间、覆盖度 | factors_plus.py |
-| 动量 | 10% | MACD、6月/1月动量、KDJ随机指标 | engine.py |
-| **盈利质量🆕** | 10% | 近4季盈利惊喜(连续超预期?)、盈利同比增速、预期EPS改善 | factors_plus.py |
-| 资金流 | 9% | OBV、Chaikin CMF、MFI、放量突破52周高 | factors_plus.py |
-| **筹码面🆕** | 8% | 机构持股、内部人持股、做空比例/回补天数 | factors_plus.py |
-| 风险 | 8% | 年化波动率 | engine.py |
-| 相对大盘 | 7% | 近63日 vs QQQ | engine.py |
-| 新闻情绪 | 6% | 美股英文(VADER) / A股中文(akshare) 金融词典情绪 | news.py / cn_news.py |
-| 强弱 | 4% | RSI、布林 %B | engine.py |
+## Data and Runtime Notes
 
-> **🌐 大盘环境(Market Regime)🆕**：看 QQQ 是否站上 50/200 日线 + 近月动量，判断 Risk-On/Off，
-> 顺大势对所有个股分做 ±微调（On ×1.05 / Off ×0.93），避免系统性下跌中满仓。
-> **配色**：A股习惯 🔴红=看多/买入、🟢绿=看空/卖出。
+- Daily bars and provider metadata may be delayed and should not be interpreted as real-time market data.
+- Futu OpenD is preferred locally when available; the application silently falls back to `yfinance` when the gateway is unavailable.
+- China A-share endpoints, especially news endpoints, may be slower or less reliable from overseas cloud infrastructure.
+- Newly listed securities may not have enough observations for long-window indicators; the interface flags insufficient samples rather than treating missing values as valid signals.
+- Streamlit Community Cloud may require a cold start after inactivity.
 
-> **技术指标全集**：SMA20/50/200、EMA、MACD、RSI、布林带、ATR、**ADX/+DI/−DI、KDJ、MFI**、OBV、CMF、52周高。
-> **A股中文新闻**：`cn_news.py` 用 akshare 抓东方财富个股新闻 + 中文金融情绪词典（懂"涨停/减持/商誉减值"等金融语义）。
-> **关于"准不准"**：量化打分是**排序/择时工具不是预测器**。每只票的回测面板给出年化/夏普/最大回撤/**持仓胜率**，准确度以这些可量化指标为准。
+## Limitations and Disclaimer
 
-**信号档位**：≥70 强烈买入 · 58~70 买入 · 45~58 持有 · 35~45 减仓 · <35 卖出。
-**风控**：止损 = 现价 − 2.5×ATR，目标 = +4×ATR；仓位按分数与波动率调整，单票上限 25%。
-（关闭基本面/新闻因子时，权重自动归一化到剩余技术因子。）
+This project is a quantitative research and software-engineering prototype. It is not a validated asset-pricing model, an execution guarantee, or a source of personalized investment advice. Backtest results are sensitive to the selected universe, data quality, transaction-cost assumptions, look-ahead controls, parameter choices, and market regime. Historical performance does not imply future performance.
 
-## 📤 推送信号（邮件 / 微信）
-
-复制 `config.example.json` 为 `config.json` 填凭证（此文件已被 .gitignore，不会上传）：
-- **邮件**：用邮箱「授权码」（非登录密码），网页版邮箱设置里开 SMTP 生成
-- **微信**：用 [Server酱](https://sct.ftqq.com)，微信扫码拿 SendKey
-
-界面左侧「📤 推送信号」一键发送；或命令行 `python3 -c "import notify; print(notify.run_and_push())"`。
-
-## 部署到 Streamlit Cloud（拿到可分享网址）
-
-1. 本仓库已推送到 GitHub（公开）。
-2. 打开 [share.streamlit.io](https://share.streamlit.io) → 用 GitHub 登录。
-3. New app → 选本仓库 → Main file 填 `app.py` → Deploy。
-4. 几分钟后得到 `https://<名字>.streamlit.app` 永久网址，发给家人朋友即可。
-
-> 注意：**不要**在 Streamlit Cloud 上配置真实邮箱/微信密码到公开仓库；
-> 如需云端推送，用 Streamlit 的 Secrets 功能存凭证。
-
-## 文件结构
-
-| 文件 | 作用 |
-|------|------|
-| `engine.py` | 数据获取、技术指标、综合打分、风控、回测 |
-| `factors_plus.py` | 基本面 / 分析师 / 资金流因子 |
-| `news.py` | 新闻抓取 + 金融情绪分析 |
-| `universe.py` | 高科技选股池 + 扫描排名 |
-| `notify.py` | 邮件 / 微信推送 |
-| `app.py` | Streamlit 交互界面 |
-| `app-shell/` | 封装成手机/桌面 App 的外壳（PWA / Capacitor / Tauri）|
-
-## 📲 封装成 App（手机 iOS/安卓 · 桌面 Mac/Win）
-
-不改动 Python 代码，用一层"外壳"包住已部署的云端网址即可，四端统一。详见
-[`app-shell/README.md`](app-shell/README.md)。**今天就能装**：手机浏览器打开云端网址
-→「添加到主屏幕」即成 App；想要自定义图标+启动页，把 `app-shell/web/` 托管到
-GitHub Pages / Netlify 后再添加。上架商店用 `app-shell/capacitor/`，桌面安装包用
-`app-shell/tauri/`。
-
-## 🔍 个股详情：美股/A股搜索（支持名称模糊）
-
-「🔍 个股详情」页顶部有三个入口：**🇺🇸美股 代码/名称**（输 `NVDA` 或 `apple`/`nvidia`，
-经 Yahoo 搜索匹配）、**🇨🇳A股 代码/名称**（输 `600519` 或 `茅台`/`比亚迪`，经 akshare
-全量名单匹配，失败回退龙头名单）、以及从自选股下拉选择。输入后弹出匹配结果供选择，
-选中即出完整个股分析（评分/信号/风控/K线/因子雷达/回测/新闻）。
-> 注：SpaceX 等**未上市公司**没有公开行情，无法量化分析（会显示"数据不足"）。
-
-## ⚡ 关于打开速度（Streamlit Cloud）
-
-云端首次打开慢，原因和应对：
-1. **免费版休眠冷启动**：应用闲置后会休眠，首次访问要唤醒容器（约30秒-1分钟），这是免费版机制，无法避免。
-2. **自选股首屏计算**：打开即拉取行情+新闻+基本面+财报日，约10-30秒（已缓存15分钟，二次秒开）。
-3. **三个选股池改为"点按钮才扫描"**：避免一打开就同时扫描 ~130 只股票。
-4. **A股数据**：本应用部署在海外服务器，A股（尤其 akshare 中文新闻）可能超时；**A股建议本地运行**最稳。
-
-> 想更快：用付费版/自托管，或本地 `streamlit run app.py`（无冷启动、A股数据通畅）。
-
-## 说明
-
-- **数据非实时**：日线收盘 / 约延迟15分钟，适合中长线择时；盘内秒级看富途。
-- **SPCX (SpaceX)** 已上市但样本不足时会标「数据不足·仅供观察」。
-- 数据缓存 15~30 分钟，点「🔄 刷新分析」强制更新。
+Users are responsible for independently validating all data, assumptions, and outputs before applying any result outside a research environment.
