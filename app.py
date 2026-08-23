@@ -28,14 +28,14 @@ import userstore
 import orderstore
 import favorites
 
-st.set_page_config(page_title="皓量化", layout="wide", page_icon="📈")
+st.set_page_config(page_title="皓量化 · Brad Quant", layout="wide", page_icon="📈")
 
 # 多用户登录门 (未启用多用户时返回 None, 保持单用户模式; 未登录会在此停止渲染)
 CURRENT_USER = auth.login_gate()
 
 # ---------------------------------------------------------------- 侧边栏配置
-st.sidebar.title("⚙️ 配置")
-st.sidebar.caption("数据: yfinance 日线 · 仅供研究, 非投资建议")
+st.sidebar.title("⚙️ 配置 / Settings")
+st.sidebar.caption("数据 / Data: yfinance 日线 · 仅供研究 / Research only, not investment advice")
 
 # 已登录: 顶部显示用户 + 退出
 if CURRENT_USER:
@@ -202,13 +202,13 @@ _pend = st.session_state.pop("_pending_fav_add", None)
 if _pend:
     _add_fav(_pend[0], _pend[1])
 
-st.sidebar.markdown("### ⭐ 我的收藏")
-st.sidebar.caption("搜索名称即可加入; 本机自动记住, 下次打开还在。第一只显示在最前。")
+st.sidebar.markdown("### ⭐ 我的收藏 / Favorites")
+st.sidebar.caption("搜索名称即可加入，本机自动保存 / Search by name; saved on this device.")
 
 # —— 搜索并加入收藏
-with st.sidebar.expander("🔎 搜索股票并加入收藏", expanded=True):
-    _fmkt = st.radio("市场", ["🇺🇸 美股", "🇨🇳 A股"], horizontal=True, key="fav_mkt")
-    _fq = st.text_input("输入代码或名称", key="fav_search_q",
+with st.sidebar.expander("🔎 搜索并收藏 / Search & add", expanded=True):
+    _fmkt = st.radio("市场 / Market", ["🇺🇸 美股 / US", "🇨🇳 A股 / China A"], horizontal=True, key="fav_mkt")
+    _fq = st.text_input("代码或名称 / Symbol or name", key="fav_search_q",
                         placeholder="如 NVDA / 苹果  或  麦迪 / 603990").strip()
     if _fq:
         if _fmkt.startswith("🇺🇸"):
@@ -220,10 +220,10 @@ with st.sidebar.expander("🔎 搜索股票并加入收藏", expanded=True):
         if not _opts:
             st.caption("没匹配到, 换个关键词试试 (A股用中文名或6位代码)。")
         else:
-            _idx = st.selectbox("匹配结果", range(len(_opts)),
+            _idx = st.selectbox("匹配结果 / Matches", range(len(_opts)),
                                 format_func=lambda i: f"{_opts[i][0]}  {_opts[i][1]}",
                                 key="fav_pick")
-            if st.button("➕ 加入收藏", use_container_width=True, key="fav_add_btn"):
+            if st.button("➕ 加入收藏 / Add", use_container_width=True, key="fav_add_btn"):
                 _c, _n = _opts[_idx]
                 st.toast(f"已加入收藏: {_n}" if _add_fav(_c, _n) else "这只已在收藏里了")
                 st.rerun()
@@ -314,12 +314,12 @@ if CURRENT_USER:
             st.sidebar.error("同步失败, 请重试。")
 
 st.sidebar.divider()
-period = st.sidebar.selectbox("数据周期", ["1y", "2y", "5y"], index=1)
-use_news = st.sidebar.checkbox("启用新闻情绪因子 📰", value=True,
+period = st.sidebar.selectbox("数据周期 / Period", ["1y", "2y", "5y"], index=1)
+use_news = st.sidebar.checkbox("新闻情绪 / News sentiment 📰", value=True,
                                help="抓取个股新闻并做金融情绪分析")
-use_fund = st.sidebar.checkbox("启用基本面/分析师/资金流 📊", value=True,
+use_fund = st.sidebar.checkbox("基本面/分析师/资金流 / Fundamentals, analysts & money flow 📊", value=True,
                                help="PEG/营收增速/华尔街评级/目标价/OBV/CMF")
-refresh = st.sidebar.button("🔄 刷新分析", type="primary", use_container_width=True)
+refresh = st.sidebar.button("🔄 刷新分析 / Refresh", type="primary", use_container_width=True)
 
 # 本机 localStorage 持久化 (仅在收藏有变化时写一次)
 codes_text = st.session_state.get("fav_text", "")
@@ -351,7 +351,8 @@ if refresh:
 res = load(watchlist, period, use_news, use_fund)
 table, detail = res["table"], res["detail"]
 
-st.title("📈 皓量化")
+st.title("📈 皓量化 · Brad Quant")
+st.caption("美股 / A股多因子量化选股看板 · US & China multi-factor stock screener")
 
 # 提示: 有哪些自选股代码取不到行情被跳过 (未上市/代码错误/退市)
 _missing = [f"{c}" + (f"({watchlist[c]})" if watchlist.get(c) and watchlist[c] != c else "")
@@ -369,11 +370,11 @@ _pill = ("text-decoration:none;padding:3px 10px;border-radius:999px;"
          "font-size:0.85em;white-space:nowrap")
 st.markdown(
     "<div style='display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:-6px 0 10px'>"
-    "<span style='color:#9aa0aa;font-size:0.85em'>📲 下载 App:</span>"
+    "<span style='color:#9aa0aa;font-size:0.85em'>📲 下载 / Download App:</span>"
     f"<a target='_blank' rel='noopener' style='{_pill}' href='{_REL}/StockQuant-Windows-Setup.exe'>🪟 Windows</a>"
     f"<a target='_blank' rel='noopener' style='{_pill}' href='{_REL}/StockQuant-macOS.dmg'>🍎 macOS</a>"
     f"<a target='_blank' rel='noopener' style='{_pill}' href='{_REL}/StockQuant-Android.apk'>🤖 Android</a>"
-    f"<a target='_blank' rel='noopener' style='{_pill};background:#ef5350;border-color:#ef5350;color:#fff' href='{_DL_PAGE}'>📥 全部下载 / iPhone</a>"
+    f"<a target='_blank' rel='noopener' style='{_pill};background:#ef5350;border-color:#ef5350;color:#fff' href='{_DL_PAGE}'>📥 全部下载 / All downloads / iPhone</a>"
     "</div>", unsafe_allow_html=True)
 
 reg = res.get("regime", {})
@@ -382,11 +383,11 @@ if reg:
     st.markdown(
         f"<div style='border-radius:8px;padding:8px 14px;background:#1e1e1e;"
         f"border-left:6px solid {rc};margin-bottom:6px'>"
-        f"<b>🌐 大盘环境: {reg['label']}</b>　(择时分 {reg['score']})　"
+        f"<b>🌐 大盘环境 / Market Regime: {reg['label']}</b>　(择时分 / Timing score: {reg['score']})　"
         f"<span style='color:#999;font-size:0.9em'>{reg['detail']} — "
-        f"Risk-On时全局略加分, Risk-Off时略减分</span></div>", unsafe_allow_html=True)
-st.caption(f"更新时间: {res['asof']}　·　基准: {engine.BENCHMARK}　·　12因子加权 · "
-           "🔴红=看多 🟢绿=看空")
+        f"Risk-On 时全局略加分 / raises scores; Risk-Off 时略减分 / lowers scores</span></div>", unsafe_allow_html=True)
+st.caption(f"更新时间 / Updated: {res['asof']}　·　基准 / Benchmark: {engine.BENCHMARK}　·　"
+           "12因子加权 / 12-factor weighted score · 🔴红=看多 / Bullish　🟢绿=看空 / Bearish")
 
 # ---------------------------------------------------------------- 侧边栏: 推送
 st.sidebar.divider()
@@ -506,19 +507,46 @@ if _confirm_deep_link:
     st.stop()
 
 
-_order_tab_label = "📱 待确认"
+_order_tab_label = "📱 待确认 / Confirm"
 if _pending_order_count:
-    _order_tab_label = f"📱 待确认({_pending_order_count})"
+    _order_tab_label = f"📱 待确认 / Confirm ({_pending_order_count})"
 
-_tab_labels = ["🔍 个股详情", "🏆 自选股排名", _order_tab_label,
-               "🧪 模拟盘", "🤖 AI 交易员", "🔭 美股科技池",
-               "🇺🇸 美股其他板块", "🇨🇳 A股选股", "💹 指数基金", "📖 模型原理"]
+_tab_labels = ["🔍 个股详情 / Stock", "🏆 自选股排名 / Ranking", _order_tab_label,
+               "🧪 模拟盘 / Backtest", "🤖 AI 交易员 / AI Trader", "🔭 美股科技池 / US Tech",
+               "🇺🇸 其他板块 / US Sectors", "🇨🇳 A股选股 / China A", "💹 指数基金 / ETFs", "📖 模型原理 / Method"]
 if CURRENT_USER:
-    _tab_labels.append("⚙️ 我的")
+    _tab_labels.append("⚙️ 我的 / Account")
 _tabs = st.tabs(_tab_labels)
 tab2, tab1, tab_orders, tab8, tab9, tab3, tab4, tab5, tab7, tab6 = _tabs[:10]
 _idx = 10
 tab_me = _tabs[_idx] if CURRENT_USER else None
+
+
+_DISPLAY_COLUMNS = {
+    "代码": "代码 / Symbol", "名称": "名称 / Name", "主题": "主题 / Theme",
+    "综合分": "综合分 / Score", "信号": "信号 / Signal",
+    "基本面": "基本面 / Fundamental", "趋势": "趋势 / Trend",
+    "分析师": "分析师 / Analyst", "动量": "动量 / Momentum",
+    "盈利质量": "盈利质量 / Earnings", "资金流": "资金流 / Money Flow",
+    "筹码面": "筹码面 / Ownership", "风险": "风险 / Risk",
+    "相对大盘": "相对大盘 / Relative", "板块热度": "板块热度 / Sector",
+    "新闻情绪": "新闻情绪 / News", "强弱": "强弱 / Strength",
+    "现价": "现价 / Price", "止损价": "止损 / Stop", "目标价": "目标 / Target",
+    "止损%": "止损% / Stop%", "目标%": "目标% / Target%",
+    "建议仓位%": "仓位% / Weight%", "距财报": "距财报 / Earnings",
+}
+_ACTION_EN = {
+    "强烈买入": "强烈买入 / Strong Buy", "买入": "买入 / Buy", "持有": "持有 / Hold",
+    "减仓": "减仓 / Reduce", "卖出": "卖出 / Sell", "观察(次新股)": "观察 / Watch",
+}
+
+
+def _bilingual_display(df: pd.DataFrame) -> pd.DataFrame:
+    """Translate display-only table labels while preserving internal model keys."""
+    out = df.copy()
+    if "信号" in out.columns:
+        out["信号"] = out["信号"].map(lambda x: _ACTION_EN.get(str(x), x))
+    return out.rename(columns={c: _DISPLAY_COLUMNS.get(c, c) for c in out.columns})
 
 
 def _render_screen(scr, currency="$"):
@@ -531,16 +559,18 @@ def _render_screen(scr, currency="$"):
                             "止损价", "目标价", "建议仓位%"] if c in scr.columns]
     grad = [c for c in ["综合分", "基本面", "趋势", "分析师", "动量", "盈利质量",
                         "资金流", "筹码面"] if c in scr.columns]
-    fmt = {c: "{:.2f}" for c in ["现价", "止损价", "目标价"] if c in scr.columns}
-    fmt["建议仓位%"] = "{:.1f}"
+    shown = _bilingual_display(scr[cols_scr])
+    grad_shown = [_DISPLAY_COLUMNS.get(c, c) for c in grad]
+    fmt = {_DISPLAY_COLUMNS.get(c, c): "{:.2f}" for c in ["现价", "止损价", "目标价"] if c in scr.columns}
+    fmt[_DISPLAY_COLUMNS["建议仓位%"]] = "{:.1f}"
     st.dataframe(
-        scr[cols_scr].style
-        .background_gradient(subset=grad, cmap="RdYlGn_r", vmin=0, vmax=100)
+        shown.style
+        .background_gradient(subset=grad_shown, cmap="RdYlGn_r", vmin=0, vmax=100)
         .format(fmt),
         use_container_width=True, height=min(60 + 36 * len(scr), 700))
     buys = scr[scr["综合分"] >= 58]
     if len(buys):
-        st.success("**🔴 买入级候选 (综合分≥58)**　" +
+        st.success("**🔴 买入级候选 / Buy candidates (综合分 / Score ≥58)**　" +
                    "　".join(f"{r['代码']} {r['名称']}({r['综合分']})" for _, r in buys.iterrows()))
 
 # ================================================================ TAB 1 排名
@@ -554,7 +584,7 @@ with tab1:
                 f"border-left:5px solid {r['_color']}'>"
                 f"<b>{r['代码']}</b><br><span style='font-size:0.8em;color:#999'>{r['名称']}</span>"
                 f"<h2 style='margin:4px 0;color:{r['_color']}'>{r['综合分']}</h2>"
-                f"<span style='color:{r['_color']}'>{r['信号']}</span></div>",
+                f"<span style='color:{r['_color']}'>{_ACTION_EN.get(str(r['信号']), r['信号'])}</span></div>",
                 unsafe_allow_html=True)
 
     st.markdown("###")
@@ -564,17 +594,20 @@ with tab1:
     show_cols = (["代码", "名称", "综合分", "信号"] + factor_cols +
                  ["现价", "止损价", "目标价", "止损%", "目标%", "建议仓位%"] +
                  (["距财报"] if "距财报" in table.columns else []))
-    disp = table[show_cols].copy()
+    disp = _bilingual_display(table[show_cols])
+    factor_cols_display = [_DISPLAY_COLUMNS.get(c, c) for c in factor_cols]
     st.dataframe(
         disp.style
-        .background_gradient(subset=["综合分"], cmap="RdYlGn_r", vmin=0, vmax=100)
-        .background_gradient(subset=factor_cols, cmap="RdYlGn_r", vmin=0, vmax=100)
-        .format({"现价": "{:.2f}", "止损价": "{:.2f}", "目标价": "{:.2f}",
-                 "止损%": "{:+.1f}", "目标%": "{:+.1f}", "建议仓位%": "{:.1f}"}),
+        .background_gradient(subset=[_DISPLAY_COLUMNS["综合分"]], cmap="RdYlGn_r", vmin=0, vmax=100)
+        .background_gradient(subset=factor_cols_display, cmap="RdYlGn_r", vmin=0, vmax=100)
+        .format({_DISPLAY_COLUMNS["现价"]: "{:.2f}", _DISPLAY_COLUMNS["止损价"]: "{:.2f}",
+                 _DISPLAY_COLUMNS["目标价"]: "{:.2f}", _DISPLAY_COLUMNS["止损%"]: "{:+.1f}",
+                 _DISPLAY_COLUMNS["目标%"]: "{:+.1f}", _DISPLAY_COLUMNS["建议仓位%"]: "{:.1f}"}),
         use_container_width=True, height=min(60 + 38 * len(disp), 500))
 
-    st.info("**信号解读**　综合分≥70 强烈买入 · 58~70 买入 · 45~58 持有 · "
-            "35~45 减仓 · <35 卖出。建议仓位已按波动率调整, 单票上限 25%。"
+    st.info("**信号解读 / Signal guide**　综合分 / Score ≥70 强烈买入 / Strong Buy · "
+            "58~70 买入 / Buy · 45~58 持有 / Hold · "
+            "35~45 减仓 / Reduce · <35 卖出 / Sell。建议仓位已按波动率调整, 单票上限 25%。"
             "止损/目标价基于 ATR(2.5×/4×), 富途下单时可直接参考。")
 
 # ================================================================ TAB 2 详情
@@ -587,11 +620,11 @@ def render_detail(code: str, info: dict, currency: str = "$", name: str = ""):
     st.markdown(f"#### {title}")
 
     c1, c2, c3, c4, c5 = st.columns(5)
-    c1.metric("综合分", info["score"])
-    c2.metric("信号", info["action"])
-    c3.metric("现价", f"{cur}{plan['现价']}")
-    c4.metric("止损价", f"{cur}{plan['止损价']}", f"{plan['止损%']}%")
-    c5.metric("目标价", f"{cur}{plan['目标价']}", f"{plan['目标%']}%")
+    c1.metric("综合分 / Score", info["score"])
+    c2.metric("信号 / Signal", _ACTION_EN.get(str(info["action"]), info["action"]))
+    c3.metric("现价 / Price", f"{cur}{plan['现价']}")
+    c4.metric("止损价 / Stop", f"{cur}{plan['止损价']}", f"{plan['止损%']}%")
+    c5.metric("目标价 / Target", f"{cur}{plan['目标价']}", f"{plan['目标%']}%")
 
     earn = info.get("earnings")
     if earn:
@@ -843,7 +876,7 @@ def render_detail(code: str, info: dict, currency: str = "$", name: str = ""):
 
 
 with tab2:
-    st.markdown("#### 🔍 个股详情 — 输入代码或名称 (美股英文 / A股中文), 或从自选股选择")
+    st.markdown("#### 🔍 个股详情 / Stock details — 输入代码或名称 / Enter a symbol or company name")
     sc1, sc2, sc3 = st.columns(3)
     us_q = sc1.text_input("🇺🇸 美股 代码/名称", placeholder="如 NVDA 或 apple / nvidia",
                           key="us_query").strip()
@@ -908,7 +941,7 @@ with tab2:
 
 # ================================================================ TAB 8 模拟盘
 with tab8:
-    st.subheader("🧪 模拟盘 — 把自选股当成一个组合回测")
+    st.subheader("🧪 模拟盘 / Portfolio backtest — 把自选股作为一个组合 / Test favorites as one portfolio")
     st.caption("用量化策略信号(综合分驱动的趋势择时)在历史上逐日调仓, 看整体收益 vs 一直持有不动。"
                "数据来自当前自选股各自的回测, 切换周期/自选股后点『刷新分析』即同步。")
 
@@ -976,7 +1009,7 @@ with tab8:
 
 # ================================================================ TAB 9 AI 交易员
 with tab9:
-    st.subheader("🤖 AI 交易员 — 自动决策的模拟账户")
+    st.subheader("🤖 AI 交易员 / AI Trader — 自动决策的模拟账户 / Automated paper account")
     st.caption("一个起始虚拟资金的账户, 每次『执行今日交易』会按综合分自动调仓"
                "(≥58 建/加仓到建议仓位·单票≤25%, <45 清仓, 中间持有), "
                "持仓、成交、盈亏曲线全部保存, 像一个会自己操盘的 AI 交易员。"
@@ -1147,7 +1180,7 @@ with tab9:
 
 # ================================================================ TAB 3 选股池
 with tab3:
-    st.markdown("#### 🔭 高科技股票池扫描 — 在你持仓之外找机会")
+    st.markdown("#### 🔭 高科技股票池 / US Tech Screener — 在持仓之外寻找机会 / Find ideas beyond your portfolio")
     tech_themes = list(universe.TECH_UNIVERSE.keys())
     sel3 = st.multiselect("① 先选领域 (留空=全部科技主题)", tech_themes, default=[],
                           key="theme_tech", placeholder="选择一个或多个主题…")
@@ -1170,7 +1203,7 @@ with tab3:
 
 # ================================================================ TAB 4 美股其他板块
 with tab4:
-    st.markdown("#### 🇺🇸 美股非科技板块 — 价值/防御/周期, 给科技仓位做分散")
+    st.markdown("#### 🇺🇸 美股非科技板块 / US Sectors — 价值、防御与周期 / Value, defensive & cyclical ideas")
     other_themes = list(universe.US_SECTORS.keys())
     sel4 = st.multiselect("① 先选领域 (留空=全部板块)", other_themes, default=[],
                           key="theme_other", placeholder="选择一个或多个板块…")
@@ -1188,7 +1221,7 @@ with tab4:
 
 # ================================================================ TAB 5 A股
 with tab5:
-    st.markdown("#### 🇨🇳 A股龙头选股 — 沪深主要行业龙头")
+    st.markdown("#### 🇨🇳 A股龙头选股 / China A-share Leaders — 沪深主要行业龙头 / Major sector leaders")
     a_themes = list(ashare.A_UNIVERSE.keys())
     sel5 = st.multiselect("① 先选行业 (留空=全部行业)", a_themes, default=[],
                           key="theme_a", placeholder="选择一个或多个行业…")
@@ -1208,7 +1241,7 @@ with tab5:
 
 # ================================================================ TAB 7 指数基金
 with tab7:
-    st.markdown("#### 💹 指数基金 / ETF — 美国 · 中国 指数择时与轮动")
+    st.markdown("#### 💹 指数基金 / ETFs — 美国与中国指数择时轮动 / US & China market timing and rotation")
     st.caption("ETF 无基本面/分析师/财报因子, 打分主看趋势·动量·技术面 + 大盘环境, "
                "适合做指数择时/板块轮动参考。美国ETF为$, 中国ETF为¥。")
     fmkt = st.radio("市场", ["🇺🇸 美国指数", "🇨🇳 中国指数"], horizontal=True, key="fund_mkt")
@@ -1252,7 +1285,7 @@ with tab7:
 
 # ================================================================ TAB 6 模型原理
 with tab6:
-    st.markdown("## 📖 模型用什么指标、怎么「预测」")
+    st.markdown("## 📖 模型原理 / How the model works")
     st.warning("先说清楚: 这是一个**多因子打分排序 + 择时**工具, **不是股价预测器**。"
                "没有任何模型能准确预测股价。它的作用是把一篮子股票按「当前性价比」排序, "
                "并给出基于规则的买卖区间。是否有效, 以下方**回测指标(年化/夏普/胜率)**为准。")
@@ -1312,7 +1345,7 @@ with tab6:
 # ================================================================ TAB 我的 / 管理
 if tab_me is not None:
     with tab_me:
-        st.subheader("⚙️ 我的账户与设置")
+        st.subheader("⚙️ 我的账户与设置 / Account & Settings")
         _p = userstore.get_profile(CURRENT_USER) or {}
         st.markdown(f"**账户**：{CURRENT_USER}　|　注册：{_p.get('created_at','—')}"
                     f"　|　上次登录：{_p.get('last_login','—')}")

@@ -169,17 +169,17 @@ def logout() -> None:
 
 
 def _render_login_form() -> None:
-    st.markdown("## 📈 皓量化 · 登录")
-    st.caption("多因子量化分析 · 美股 / A股。请登录后使用；新用户凭邀请码注册。")
+    st.markdown("## 📈 皓量化 · Brad Quant")
+    st.caption("美股 / A股多因子量化分析 · Multi-factor analysis for US & China A-shares")
 
-    tab_login, tab_reg = st.tabs(["🔑 登录", "🆕 注册"])
+    tab_login, tab_reg = st.tabs(["🔑 登录 / Sign in", "🆕 注册 / Register"])
 
     with tab_login:
         with st.form("login_form", clear_on_submit=False):
-            email = st.text_input("邮箱", key="li_email", placeholder="you@example.com")
-            pw = st.text_input("密码", type="password", key="li_pw")
-            st.caption("在本设备登录一次后会自动保持登录；请在公用设备上使用“退出”。")
-            ok = st.form_submit_button("登录", type="primary", use_container_width=True)
+            email = st.text_input("邮箱 / Email", key="li_email", placeholder="you@example.com")
+            pw = st.text_input("密码 / Password", type="password", key="li_pw")
+            st.caption("本设备会保持登录；公用设备请退出 / Stay signed in on this device; sign out on shared devices.")
+            ok = st.form_submit_button("登录 / Sign in", type="primary", use_container_width=True)
         if ok:
             good, msg = userstore.verify_login(email, pw)
             if good:
@@ -198,11 +198,11 @@ def _render_login_form() -> None:
         if not codes and not userstore.using_supabase():
             st.info("当前未配置邀请码，管理员邮箱可直接注册。")
         with st.form("reg_form", clear_on_submit=False):
-            r_email = st.text_input("邮箱", key="rg_email", placeholder="you@example.com")
-            r_pw = st.text_input("设置密码 (≥6位)", type="password", key="rg_pw")
-            r_pw2 = st.text_input("确认密码", type="password", key="rg_pw2")
-            r_code = st.text_input("邀请码", key="rg_code", help="向管理员索取；管理员邮箱可留空。")
-            ok2 = st.form_submit_button("注册", use_container_width=True)
+            r_email = st.text_input("邮箱 / Email", key="rg_email", placeholder="you@example.com")
+            r_pw = st.text_input("设置密码 / Password (≥6位)", type="password", key="rg_pw")
+            r_pw2 = st.text_input("确认密码 / Confirm password", type="password", key="rg_pw2")
+            r_code = st.text_input("邀请码 / Invitation code", key="rg_code", help="向管理员索取 / Ask the administrator.")
+            ok2 = st.form_submit_button("注册 / Register", use_container_width=True)
         if ok2:
             if r_pw != r_pw2:
                 st.error("两次密码不一致。")
