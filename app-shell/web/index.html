@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no" />
-  <title>皓量化</title>
+  <title>皓量化 · Brad Quant</title>
   <meta name="theme-color" content="#0e1117" />
   <!-- 提前与云端建立连接, 国内首屏略快 -->
   <link rel="preconnect" href="https://us-stock-quant-txpjva2xepffh9h2peiaup.streamlit.app" crossorigin />
@@ -11,7 +11,7 @@
   <!-- iOS 全屏 App 化 -->
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="apple-mobile-web-app-title" content="皓量化" />
+  <meta name="apple-mobile-web-app-title" content="皓量化 · Brad Quant" />
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="apple-touch-icon" href="icons/icon-192.png" />
   <link rel="icon" type="image/png" href="icons/icon-192.png" />
@@ -26,23 +26,65 @@
     }
     #splash img { width: 96px; height: 96px; border-radius: 22px; margin-bottom: 18px; }
     #splash .t { font-size: 20px; font-weight: 700; }
-    #splash .s { font-size: 13px; color: #9aa0aa; margin-top: 8px; }
+    #splash .s { font-size: 13px; color: #9aa0aa; margin-top: 8px; line-height: 1.65; }
+    #language-switcher { position: fixed; top: max(16px, env(safe-area-inset-top)); right: 18px;
+      z-index: 20; display: flex; padding: 3px; border: 1px solid #30363d; border-radius: 999px;
+      background: rgba(22,27,34,.92); backdrop-filter: blur(8px); }
+    .lang-btn { border: 0; border-radius: 999px; padding: 6px 11px; color: #9aa0aa;
+      background: transparent; font: 600 12px -apple-system,"Segoe UI",sans-serif; cursor: pointer; }
+    .lang-btn.active { color: #fff; background: #ef5350; }
     .spin { margin-top: 22px; width: 28px; height: 28px; border: 3px solid #333;
             border-top-color: #ef5350; border-radius: 50%; animation: r 1s linear infinite; }
     @keyframes r { to { transform: rotate(360deg); } }
   </style>
 </head>
 <body>
+  <nav id="language-switcher" aria-label="Language">
+    <button class="lang-btn" type="button" data-lang="zh">中文</button>
+    <button class="lang-btn" type="button" data-lang="en">EN</button>
+  </nav>
   <div id="splash">
-    <img src="icons/icon-192.png" alt="logo" />
-    <div class="t">📈 皓量化</div>
-    <div class="s">美股 / A股 多因子量化 · 首次唤醒云端约需 20–40 秒</div>
+    <img src="icons/icon-192.png" alt="Brad Quant logo" />
+    <div class="t">📈 皓量化 · Brad Quant</div>
+    <div class="s" id="splash-copy"></div>
     <div class="spin"></div>
   </div>
   <iframe id="app" src="" allow="clipboard-read; clipboard-write" referrerpolicy="no-referrer"></iframe>
 
   <script>
-    // 你的 Streamlit 云端地址。embed=true 隐藏顶部菜单/页脚, 更像原生 App。
+    var copy = {
+      zh: {
+        title: "皓量化 · 多因子股票研究平台",
+        splash: "美股 / A股多因子量化研究<br />首次唤醒云端约需 20–40 秒"
+      },
+      en: {
+        title: "Brad Quant · Multi-Factor Equity Research",
+        splash: "Multi-factor research for U.S. equities and China A-shares<br />Cloud startup may take 20–40 seconds"
+      }
+    };
+    var params = new URLSearchParams(window.location.search);
+    var requested = params.get("lang");
+    var saved = localStorage.getItem("brad-quant-language");
+    var browser = (navigator.language || "").toLowerCase().startsWith("zh") ? "zh" : "en";
+    var language = requested === "zh" || requested === "en" ? requested : (saved || browser);
+
+    function applyLanguage(next) {
+      language = next === "en" ? "en" : "zh";
+      localStorage.setItem("brad-quant-language", language);
+      document.documentElement.lang = language === "zh" ? "zh-CN" : "en";
+      document.title = copy[language].title;
+      document.getElementById("splash-copy").innerHTML = copy[language].splash;
+      document.querySelectorAll(".lang-btn").forEach(function (button) {
+        button.classList.toggle("active", button.dataset.lang === language);
+        button.setAttribute("aria-pressed", button.dataset.lang === language ? "true" : "false");
+      });
+    }
+    document.querySelectorAll(".lang-btn").forEach(function (button) {
+      button.addEventListener("click", function () { applyLanguage(button.dataset.lang); });
+    });
+    applyLanguage(language);
+
+    // Streamlit cloud endpoint. embed=true hides Streamlit chrome for an app-like shell.
     var STREAMLIT_URL = "https://us-stock-quant-txpjva2xepffh9h2peiaup.streamlit.app/?embed=true";
     var frame = document.getElementById("app");
     var splash = document.getElementById("splash");
@@ -50,11 +92,17 @@
     frame.addEventListener("load", function () {
       setTimeout(function () {
         splash.style.opacity = "0";
-        setTimeout(function () { splash.style.display = "none"; }, 400);
+        setTimeout(function () {
+          splash.style.display = "none";
+          document.getElementById("language-switcher").style.display = "none";
+        }, 400);
       }, 800);
     });
-    // 兜底: 无论如何 45 秒后移除启动页
-    setTimeout(function () { splash.style.display = "none"; }, 45000);
+    // Fallback: always remove the splash screen after 45 seconds.
+    setTimeout(function () {
+      splash.style.display = "none";
+      document.getElementById("language-switcher").style.display = "none";
+    }, 45000);
 
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", function () {

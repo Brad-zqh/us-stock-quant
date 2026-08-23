@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>下载 · 皓量化</title>
+  <title>下载 / Download · 皓量化 · Brad Quant</title>
   <meta name="theme-color" content="#0e1117" />
   <link rel="icon" type="image/png" href="icons/icon-192.png" />
   <link rel="apple-touch-icon" href="icons/icon-192.png" />
@@ -34,60 +34,109 @@
     code { background:#0b0e12; padding:1px 6px; border-radius:5px; color:#e6b800; font-size:12px; }
     footer { text-align:center; color:var(--sub); font-size:12px; margin-top:30px; }
     a.link { color:#58a6ff; }
+    .language-switcher { display:flex; justify-content:flex-end; margin-bottom:12px; }
+    .language-switcher div { display:flex; padding:3px; border:1px solid var(--line);
+      border-radius:999px; background:var(--card); }
+    .lang-btn { border:0; border-radius:999px; padding:6px 12px; background:transparent;
+      color:var(--sub); font:600 12px inherit; cursor:pointer; }
+    .lang-btn.active { background:var(--red); color:#fff; }
   </style>
 </head>
 <body>
   <div class="wrap">
+    <nav class="language-switcher" aria-label="Language"><div>
+      <button class="lang-btn" type="button" data-lang="zh">中文</button>
+      <button class="lang-btn" type="button" data-lang="en">EN</button>
+    </div></nav>
     <header>
-      <img src="icons/icon-192.png" alt="logo" />
-      <h1>📈 皓量化 · 下载</h1>
-      <div class="sub">美股 / A股 多因子量化分析。选择你的设备，点击下载安装。<br />
-        安装包由 GitHub 自动构建，永远指向<b>最新版本</b>。</div>
+      <img src="icons/icon-192.png" alt="Brad Quant logo" />
+      <h1>📈 皓量化 · Brad Quant</h1>
+      <div class="sub" id="intro"></div>
     </header>
 
     <div class="grid">
       <div class="card full">
-        <h3>🌐 网页版 / 免安装（推荐先用）</h3>
-        <p>无需下载，浏览器直接打开即用。手机上打开后点「分享 → 添加到主屏幕」即可像 App 一样全屏使用（iOS 走这条）。</p>
-        <a class="btn" href="./" >打开网页版 App</a>
+        <h3 id="web-title"></h3>
+        <p id="web-copy"></p>
+        <a class="btn" id="web-button" href="./"></a>
       </div>
 
       <div class="card">
         <h3>🪟 Windows</h3>
-        <p>NSIS 安装包（.exe）。首次运行若弹 SmartScreen，点「更多信息 → 仍要运行」。</p>
-        <a class="btn" href="https://github.com/Brad-zqh/us-stock-quant/releases/latest/download/StockQuant-Windows-Setup.exe">下载 Windows 安装包</a>
+        <p id="windows-copy"></p>
+        <a class="btn" id="windows-button" href="https://github.com/Brad-zqh/us-stock-quant/releases/latest/download/StockQuant-Windows-Setup.exe"></a>
       </div>
 
       <div class="card">
         <h3>🍎 macOS</h3>
-        <p>磁盘映像（.dmg），Intel + Apple 芯片通用。未签名，装完若提示<b>"已损坏 / 无法打开"</b>属正常，按 3 步解锁：<br />
-          ① 把 App 拖进「应用程序」<br />
-          ② 打开「终端」粘贴执行：<br />
-          <code>xattr -cr "/Applications/皓量化.app"</code><br />
-          ③ 正常双击打开（或系统设置 → 隐私与安全性 → 仍要打开）。</p>
-        <a class="btn" href="https://github.com/Brad-zqh/us-stock-quant/releases/latest/download/StockQuant-macOS.dmg">下载 macOS 安装包</a>
+        <p id="mac-copy"></p>
+        <a class="btn" id="mac-button" href="https://github.com/Brad-zqh/us-stock-quant/releases/latest/download/StockQuant-macOS.dmg"></a>
       </div>
 
       <div class="card">
         <h3>🤖 Android</h3>
-        <p>调试版 APK。安装时允许「未知来源 / 安装此来源的应用」。</p>
-        <a class="btn" href="https://github.com/Brad-zqh/us-stock-quant/releases/latest/download/StockQuant-Android.apk">下载 Android APK</a>
+        <p id="android-copy"></p>
+        <a class="btn" id="android-button" href="https://github.com/Brad-zqh/us-stock-quant/releases/latest/download/StockQuant-Android.apk"></a>
       </div>
 
       <div class="card">
         <h3>📱 iPhone / iPad</h3>
-        <p>iOS 需 Apple 开发者账号才能出安装包，暂用网页版：Safari 打开网页版 → 分享 → 添加到主屏幕。</p>
-        <a class="btn ghost" href="./">用 Safari 打开网页版</a>
+        <p id="ios-copy"></p>
+        <a class="btn ghost" id="ios-button" href="./"></a>
       </div>
     </div>
 
-    <div class="note">
-      <b>提示</b>：这些安装包未做代码签名（个人项目），系统会提示"来源未知"，按上面各卡片的说明放行即可，程序本身只是把网页版<b>套壳</b>成桌面/手机 App。<br />
-      找不到下载？说明还没发布任何版本 —— 到仓库执行 <code>git tag v1.0.0 &amp;&amp; git push origin v1.0.0</code> 触发自动构建，几分钟后本页链接即可用。
-      也可直接看 <a class="link" href="https://github.com/Brad-zqh/us-stock-quant/releases/latest">最新 Release 页面</a>。
-    </div>
+    <div class="note" id="note"></div>
 
-    <footer>© 皓量化 · 仅供量化研究参考，不构成投资建议。</footer>
+    <footer id="footer"></footer>
   </div>
+  <script>
+    var copy = {
+      zh: {
+        title: "下载 · 皓量化",
+        intro: "美股 / A股多因子量化研究<br />选择设备下载<strong>最新版本</strong>。",
+        webTitle: "🌐 网页版（推荐）", webCopy: "无需安装，浏览器直接使用；手机可添加到主屏幕。", webButton: "打开网页版",
+        windowsCopy: "NSIS 安装包（.exe）。如出现 SmartScreen 提示，可选择“更多信息 → 仍要运行”。", windowsButton: "下载 Windows 版",
+        macCopy: "通用磁盘映像（.dmg），支持 Intel 与 Apple 芯片。安装包未签名；若提示<strong>“已损坏”</strong>：<br />① 把 App 拖入“应用程序”<br />② 打开“终端”并执行：<br /><code>xattr -cr &quot;/Applications/皓量化.app&quot;</code><br />③ 双击打开，或在“系统设置 → 隐私与安全性”中选择仍要打开。", macButton: "下载 macOS 版",
+        androidCopy: "调试版 APK；安装时请允许来自未知来源的应用。", androidButton: "下载 Android APK",
+        iosCopy: "使用网页版：在 Safari 中选择“分享 → 添加到主屏幕”。", iosButton: "用 Safari 打开网页版",
+        note: "<b>提示：</b>个人项目安装包未做代码签名，系统可能显示来源未知警告，请按上方说明操作。找不到下载时，可查看 <a class=\"link\" href=\"https://github.com/Brad-zqh/us-stock-quant/releases/latest\">最新 Release 页面</a>。",
+        footer: "© 皓量化 · Brad Quant · 仅供量化研究，不构成投资建议。"
+      },
+      en: {
+        title: "Download · Brad Quant",
+        intro: "Multi-factor research for U.S. equities and China A-shares<br />Choose your platform to download the <strong>latest version</strong>.",
+        webTitle: "🌐 Web App (recommended)", webCopy: "No installation required. Open it in a browser or add it to your home screen.", webButton: "Open Web App",
+        windowsCopy: "NSIS installer (.exe). If SmartScreen appears, select “More info → Run anyway.”", windowsButton: "Download for Windows",
+        macCopy: "Universal disk image (.dmg) for Intel and Apple silicon. The build is unsigned. If macOS says it <strong>cannot be opened</strong>:<br />1. Drag the app into Applications.<br />2. Open Terminal and run:<br /><code>xattr -cr &quot;/Applications/皓量化.app&quot;</code><br />3. Open the app, or allow it under System Settings → Privacy &amp; Security.", macButton: "Download for macOS",
+        androidCopy: "Debug APK. Allow installation from unknown sources when prompted.", androidButton: "Download Android APK",
+        iosCopy: "Use the Web App in Safari, then choose Share → Add to Home Screen.", iosButton: "Open Web App in Safari",
+        note: "<b>Note:</b> These personal-project builds are unsigned, so your system may show an unknown-source warning. Follow the platform instructions above, or visit the <a class=\"link\" href=\"https://github.com/Brad-zqh/us-stock-quant/releases/latest\">latest GitHub Release</a>.",
+        footer: "© Brad Quant · Quantitative research only · Not investment advice."
+      }
+    };
+    var ids = ["intro", "web-title", "web-copy", "web-button", "windows-copy", "windows-button", "mac-copy", "mac-button", "android-copy", "android-button", "ios-copy", "ios-button", "note", "footer"];
+    var keys = ["intro", "webTitle", "webCopy", "webButton", "windowsCopy", "windowsButton", "macCopy", "macButton", "androidCopy", "androidButton", "iosCopy", "iosButton", "note", "footer"];
+    var params = new URLSearchParams(window.location.search);
+    var requested = params.get("lang");
+    var saved = localStorage.getItem("brad-quant-language");
+    var browser = (navigator.language || "").toLowerCase().startsWith("zh") ? "zh" : "en";
+    function applyLanguage(next) {
+      var language = next === "en" ? "en" : "zh";
+      localStorage.setItem("brad-quant-language", language);
+      document.documentElement.lang = language === "zh" ? "zh-CN" : "en";
+      document.title = copy[language].title;
+      ids.forEach(function (id, index) { document.getElementById(id).innerHTML = copy[language][keys[index]]; });
+      document.querySelectorAll(".lang-btn").forEach(function (button) {
+        var active = button.dataset.lang === language;
+        button.classList.toggle("active", active);
+        button.setAttribute("aria-pressed", active ? "true" : "false");
+      });
+    }
+    document.querySelectorAll(".lang-btn").forEach(function (button) {
+      button.addEventListener("click", function () { applyLanguage(button.dataset.lang); });
+    });
+    applyLanguage(requested === "zh" || requested === "en" ? requested : (saved || browser));
+  </script>
 </body>
 </html>

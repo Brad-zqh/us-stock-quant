@@ -1,5 +1,9 @@
 # Brad Quant: Multi-Factor Equity Research Platform
 
+<p align="center">
+  <strong>English</strong> · <a href="README.zh-CN.md">简体中文</a>
+</p>
+
 [![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![Streamlit](https://img.shields.io/badge/Streamlit-App-FF4B4B?logo=streamlit&logoColor=white)](https://streamlit.io/)
 [![Research Only](https://img.shields.io/badge/Use-Research%20Only-6A5ACD)](#limitations-and-disclaimer)
@@ -8,7 +12,7 @@ Brad Quant is a research-oriented, explainable multi-factor equity analysis plat
 
 Rather than attempting to predict exact future prices, the system ranks securities by their current multi-dimensional profile, converts the scores into interpretable signals, and attaches volatility-aware position sizing and risk controls.
 
-**Live application:** [Open Brad Quant on Streamlit](https://us-stock-quant-txpjva2xepffh9h2peiaup.streamlit.app)
+**Live application:** [Open Brad Quant](https://brad-zqh.github.io/us-stock-quant/) · [Downloads](https://brad-zqh.github.io/us-stock-quant/download.html)
 
 ## Research Objectives
 
