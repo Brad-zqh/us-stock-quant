@@ -19,6 +19,9 @@ import time
 import streamlit as st
 
 import userstore
+import ui_i18n
+
+T = ui_i18n.t
 
 try:
     from streamlit_local_storage import LocalStorage
@@ -169,17 +172,18 @@ def logout() -> None:
 
 
 def _render_login_form() -> None:
-    st.markdown("## 📈 皓量化 · Brad Quant")
-    st.caption("美股 / A股多因子量化分析 · Multi-factor analysis for US & China A-shares")
+    st.markdown(T("## 📈 皓量化", "## 📈 Brad Quant"))
+    st.caption(T("美股 / A股多因子量化分析", "Multi-factor analysis for U.S. equities and China A-shares"))
 
-    tab_login, tab_reg = st.tabs(["🔑 登录 / Sign in", "🆕 注册 / Register"])
+    tab_login, tab_reg = st.tabs([T("🔑 登录", "🔑 Sign in"), T("🆕 注册", "🆕 Register")])
 
     with tab_login:
         with st.form("login_form", clear_on_submit=False):
-            email = st.text_input("邮箱 / Email", key="li_email", placeholder="you@example.com")
-            pw = st.text_input("密码 / Password", type="password", key="li_pw")
-            st.caption("本设备会保持登录；公用设备请退出 / Stay signed in on this device; sign out on shared devices.")
-            ok = st.form_submit_button("登录 / Sign in", type="primary", use_container_width=True)
+            email = st.text_input(T("邮箱", "Email"), key="li_email", placeholder="you@example.com")
+            pw = st.text_input(T("密码", "Password"), type="password", key="li_pw")
+            st.caption(T("本设备会保持登录；公用设备请退出。",
+                         "You will stay signed in on this device; sign out on shared devices."))
+            ok = st.form_submit_button(T("登录", "Sign in"), type="primary", use_container_width=True)
         if ok:
             good, msg = userstore.verify_login(email, pw)
             if good:
@@ -188,29 +192,32 @@ def _render_login_form() -> None:
                 st.session_state["auth_ok"] = True
                 # 下一轮完整渲染时再写入，避免紧接着的 st.rerun 抢在浏览器落盘之前。
                 st.session_state["_auth_pending_save"] = email
-                st.success(msg)
+                st.success(T(msg, "Signed in successfully."))
                 st.rerun()
             else:
-                st.error(msg)
+                st.error(T(msg, "Could not sign in. Check your email and password."))
 
     with tab_reg:
         codes = userstore.valid_invite_codes()
         if not codes and not userstore.using_supabase():
-            st.info("当前未配置邀请码，管理员邮箱可直接注册。")
+            st.info(T("当前未配置邀请码，管理员邮箱可直接注册。",
+                      "No invitation code is configured; the administrator email can register directly."))
         with st.form("reg_form", clear_on_submit=False):
-            r_email = st.text_input("邮箱 / Email", key="rg_email", placeholder="you@example.com")
-            r_pw = st.text_input("设置密码 / Password (≥6位)", type="password", key="rg_pw")
-            r_pw2 = st.text_input("确认密码 / Confirm password", type="password", key="rg_pw2")
-            r_code = st.text_input("邀请码 / Invitation code", key="rg_code", help="向管理员索取 / Ask the administrator.")
-            ok2 = st.form_submit_button("注册 / Register", use_container_width=True)
+            r_email = st.text_input(T("邮箱", "Email"), key="rg_email", placeholder="you@example.com")
+            r_pw = st.text_input(T("设置密码（至少6位）", "Password (6+ characters)"), type="password", key="rg_pw")
+            r_pw2 = st.text_input(T("确认密码", "Confirm password"), type="password", key="rg_pw2")
+            r_code = st.text_input(T("邀请码", "Invitation code"), key="rg_code",
+                                   help=T("请向管理员索取。", "Ask the administrator."))
+            ok2 = st.form_submit_button(T("注册", "Register"), use_container_width=True)
         if ok2:
             if r_pw != r_pw2:
-                st.error("两次密码不一致。")
+                st.error(T("两次密码不一致。", "The passwords do not match."))
             else:
                 good, msg = userstore.create_user(r_email, r_pw, r_code)
-                (st.success if good else st.error)(msg)
+                (st.success if good else st.error)(
+                    T(msg, "Registration successful." if good else "Could not register this account."))
                 if good:
-                    st.info("现在切到「🔑 登录」标签登录即可。")
+                    st.info(T("现在切到“登录”标签即可登录。", "Switch to the Sign in tab to continue."))
 
 
 def login_gate() -> str | None:

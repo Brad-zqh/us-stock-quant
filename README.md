@@ -32,6 +32,7 @@ Rather than attempting to predict exact future prices, the system ranks securiti
 - **Risk management:** ATR-based stop levels, target levels, volatility-adjusted position sizing, and a per-security allocation cap.
 - **Backtesting:** annualized return, Sharpe ratio, maximum drawdown, win rate, and strategy-versus-buy-and-hold comparisons.
 - **Explainability:** plain-language attribution of bullish drivers, bearish risks, technical context, and model limitations.
+- **Bilingual interface:** one-click switching between a Chinese-only and English-only UI, with the selected language preserved in the session URL.
 - **Paper trading:** persistent simulated accounts, rule-based rebalancing, transaction logs, and equity curves.
 - **Multi-platform delivery:** Streamlit web app plus PWA, Capacitor mobile shells, and Tauri desktop shells.
 

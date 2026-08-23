@@ -127,6 +127,8 @@
       document.documentElement.lang = language === "zh" ? "zh-CN" : "en";
       document.title = copy[language].title;
       ids.forEach(function (id, index) { document.getElementById(id).innerHTML = copy[language][keys[index]]; });
+      document.getElementById("web-button").href = "./?lang=" + language;
+      document.getElementById("ios-button").href = "./?lang=" + language;
       document.querySelectorAll(".lang-btn").forEach(function (button) {
         var active = button.dataset.lang === language;
         button.classList.toggle("active", active);

@@ -80,7 +80,12 @@
       });
     }
     document.querySelectorAll(".lang-btn").forEach(function (button) {
-      button.addEventListener("click", function () { applyLanguage(button.dataset.lang); });
+      button.addEventListener("click", function () {
+        applyLanguage(button.dataset.lang);
+        if (typeof frame !== "undefined" && frame) {
+          frame.src = STREAMLIT_URL + "&lang=" + language;
+        }
+      });
     });
     applyLanguage(language);
 
@@ -88,7 +93,7 @@
     var STREAMLIT_URL = "https://us-stock-quant-txpjva2xepffh9h2peiaup.streamlit.app/?embed=true";
     var frame = document.getElementById("app");
     var splash = document.getElementById("splash");
-    frame.src = STREAMLIT_URL;
+    frame.src = STREAMLIT_URL + "&lang=" + language;
     frame.addEventListener("load", function () {
       setTimeout(function () {
         splash.style.opacity = "0";
