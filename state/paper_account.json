@@ -1,25 +1,25 @@
 {
-  "cash": 5240.6213471947085,
+  "cash": 5156.753214603088,
   "start_cash": 100000.0,
   "positions": {
     "LITE": {
-      "shares": 3.1392490826683677,
-      "avg_cost": 857.843816919031,
+      "shares": 3.313538325586434,
+      "avg_cost": 859.7981999327724,
       "name": "Lumentum"
     },
     "SNDK": {
-      "shares": 2.0213217701504957,
-      "avg_cost": 1533.6242756464437,
+      "shares": 2.1065040561517003,
+      "avg_cost": 1531.6572097620688,
       "name": "闪迪 SanDisk"
     },
     "MU": {
-      "shares": 5.3909316075246565,
-      "avg_cost": 929.5088169554931,
+      "shares": 5.966178956093342,
+      "avg_cost": 929.8319300817725,
       "name": "美光科技 Micron"
     },
     "AAPL": {
-      "shares": 21.37293665871448,
-      "avg_cost": 310.51431164266086,
+      "shares": 29.988968185362083,
+      "avg_cost": 313.15342497152795,
       "name": "苹果 Apple"
     },
     "NVDA": {
@@ -28,38 +28,38 @@
       "name": "英伟达 Nvidia"
     },
     "CRWD": {
-      "shares": 14.922660929770778,
-      "avg_cost": 200.13354672502663,
+      "shares": 15.438945844944122,
+      "avg_cost": 200.74438448708298,
       "name": "CrowdStrike"
     },
     "SNOW": {
-      "shares": 24.563843217240223,
-      "avg_cost": 280.3089077131025,
+      "shares": 25.51441117141543,
+      "avg_cost": 282.08569275129,
       "name": "Snowflake"
     },
     "ANET": {
-      "shares": 28.857821485553284,
-      "avg_cost": 177.42393565799887,
+      "shares": 30.981206441782795,
+      "avg_cost": 178.654605849511,
       "name": "Arista 网络"
     },
     "AMD": {
-      "shares": 11.250529762190686,
-      "avg_cost": 487.9745522345889,
+      "shares": 11.60511666878909,
+      "avg_cost": 487.2903006247645,
       "name": "超威 AMD"
     },
     "STX": {
-      "shares": 5.054565524211254,
-      "avg_cost": 818.0331931007963,
+      "shares": 5.238699059625187,
+      "avg_cost": 818.4453756268529,
       "name": "希捷 Seagate"
     },
     "NET": {
-      "shares": 14.801847861957743,
-      "avg_cost": 267.78037207303527,
+      "shares": 15.310206660498505,
+      "avg_cost": 268.84487710777125,
       "name": "Cloudflare"
     },
     "WDC": {
-      "shares": 7.7962640620457835,
-      "avg_cost": 490.9158920556552,
+      "shares": 8.046282906967013,
+      "avg_cost": 489.9381656911781,
       "name": "西部数据 WDC"
     },
     "MRVL": {
@@ -68,22 +68,22 @@
       "name": "迈威尔 Marvell"
     },
     "AMAT": {
-      "shares": 12.279380262208,
+      "shares": 10.47146553718157,
       "avg_cost": 525.5007812170026,
       "name": "应用材料 AMAT"
     },
     "LRCX": {
-      "shares": 18.340888584691946,
+      "shares": 14.80204616193943,
       "avg_cost": 311.6396559251832,
       "name": "泛林 Lam Research"
     },
     "KLAC": {
-      "shares": 21.124338367026283,
+      "shares": 8.361276231490733,
       "avg_cost": 184.52855077523262,
       "name": "科磊 KLA"
     },
     "AVGO": {
-      "shares": 12.925926015420075,
+      "shares": 11.786824160514858,
       "avg_cost": 371.93594452515185,
       "name": "博通 Broadcom"
     },
@@ -98,7 +98,7 @@
       "name": "Palantir"
     },
     "SMCI": {
-      "shares": 69.71906266864244,
+      "shares": 60.25805589635116,
       "avg_cost": 37.704921130169005,
       "name": "超微 Supermicro"
     }
@@ -7627,6 +7627,182 @@
       "amount": 296.85,
       "pnl": 0.0,
       "reason": "综合分 70.9 ≥ 58, 建/加仓至 3%(🟢 Risk-On 进攻)"
+    },
+    {
+      "date": "2026-08-29 03:13",
+      "code": "AMAT",
+      "name": "应用材料 AMAT",
+      "side": "SELL",
+      "shares": 1.808,
+      "price": 461.67,
+      "amount": 834.66,
+      "pnl": -115.4,
+      "reason": "再平衡减仓至目标权重 5%"
+    },
+    {
+      "date": "2026-08-29 03:13",
+      "code": "LRCX",
+      "name": "泛林 Lam Research",
+      "side": "SELL",
+      "shares": 3.539,
+      "price": 301.9,
+      "amount": 1068.38,
+      "pnl": -34.47,
+      "reason": "再平衡减仓至目标权重 4%"
+    },
+    {
+      "date": "2026-08-29 03:13",
+      "code": "KLAC",
+      "name": "科磊 KLA",
+      "side": "SELL",
+      "shares": 12.763,
+      "price": 175.54,
+      "amount": 2240.43,
+      "pnl": -114.72,
+      "reason": "再平衡减仓至目标权重 1%"
+    },
+    {
+      "date": "2026-08-29 03:13",
+      "code": "AVGO",
+      "name": "博通 Broadcom",
+      "side": "SELL",
+      "shares": 1.139,
+      "price": 368.79,
+      "amount": 420.09,
+      "pnl": -3.58,
+      "reason": "再平衡减仓至目标权重 4%"
+    },
+    {
+      "date": "2026-08-29 03:13",
+      "code": "SMCI",
+      "name": "超微 Supermicro",
+      "side": "SELL",
+      "shares": 9.461,
+      "price": 37.08,
+      "amount": 350.81,
+      "pnl": -5.91,
+      "reason": "再平衡减仓至目标权重 2%"
+    },
+    {
+      "date": "2026-08-29 03:13",
+      "code": "AAPL",
+      "name": "苹果 Apple",
+      "side": "BUY",
+      "shares": 8.616,
+      "price": 319.7,
+      "amount": 2754.55,
+      "pnl": 0.0,
+      "reason": "综合分 64.7 ≥ 58, 建/加仓至 9%(🟢 Risk-On 进攻)"
+    },
+    {
+      "date": "2026-08-29 03:13",
+      "code": "SNOW",
+      "name": "Snowflake",
+      "side": "BUY",
+      "shares": 0.951,
+      "price": 328.0,
+      "amount": 311.79,
+      "pnl": 0.0,
+      "reason": "综合分 74.0 ≥ 58, 建/加仓至 8%(🟢 Risk-On 进攻)"
+    },
+    {
+      "date": "2026-08-29 03:13",
+      "code": "ANET",
+      "name": "Arista 网络",
+      "side": "BUY",
+      "shares": 2.123,
+      "price": 195.38,
+      "amount": 414.87,
+      "pnl": 0.0,
+      "reason": "综合分 78.1 ≥ 58, 建/加仓至 6%(🟢 Risk-On 进攻)"
+    },
+    {
+      "date": "2026-08-29 03:13",
+      "code": "MU",
+      "name": "美光科技 Micron",
+      "side": "BUY",
+      "shares": 0.575,
+      "price": 932.86,
+      "amount": 536.63,
+      "pnl": 0.0,
+      "reason": "综合分 76.8 ≥ 58, 建/加仓至 5%(🟢 Risk-On 进攻)"
+    },
+    {
+      "date": "2026-08-29 03:13",
+      "code": "AMD",
+      "name": "超威 AMD",
+      "side": "BUY",
+      "shares": 0.355,
+      "price": 465.58,
+      "amount": 165.09,
+      "pnl": 0.0,
+      "reason": "综合分 72.5 ≥ 58, 建/加仓至 5%(🟢 Risk-On 进攻)"
+    },
+    {
+      "date": "2026-08-29 03:13",
+      "code": "NET",
+      "name": "Cloudflare",
+      "side": "BUY",
+      "shares": 0.508,
+      "price": 299.84,
+      "amount": 152.43,
+      "pnl": 0.0,
+      "reason": "综合分 72.0 ≥ 58, 建/加仓至 4%(🟢 Risk-On 进攻)"
+    },
+    {
+      "date": "2026-08-29 03:13",
+      "code": "STX",
+      "name": "希捷 Seagate",
+      "side": "BUY",
+      "shares": 0.184,
+      "price": 829.76,
+      "amount": 152.79,
+      "pnl": 0.0,
+      "reason": "综合分 74.7 ≥ 58, 建/加仓至 4%(🟢 Risk-On 进攻)"
+    },
+    {
+      "date": "2026-08-29 03:13",
+      "code": "WDC",
+      "name": "西部数据 WDC",
+      "side": "BUY",
+      "shares": 0.25,
+      "price": 459.45,
+      "amount": 114.87,
+      "pnl": 0.0,
+      "reason": "综合分 70.8 ≥ 58, 建/加仓至 4%(🟢 Risk-On 进攻)"
+    },
+    {
+      "date": "2026-08-29 03:13",
+      "code": "CRWD",
+      "name": "CrowdStrike",
+      "side": "BUY",
+      "shares": 0.516,
+      "price": 218.4,
+      "amount": 112.76,
+      "pnl": 0.0,
+      "reason": "综合分 73.1 ≥ 58, 建/加仓至 3%(🟢 Risk-On 进攻)"
+    },
+    {
+      "date": "2026-08-29 03:13",
+      "code": "SNDK",
+      "name": "闪迪 SanDisk",
+      "side": "BUY",
+      "shares": 0.085,
+      "price": 1484.98,
+      "amount": 126.49,
+      "pnl": 0.0,
+      "reason": "综合分 72.5 ≥ 58, 建/加仓至 3%(🟢 Risk-On 进攻)"
+    },
+    {
+      "date": "2026-08-29 03:13",
+      "code": "LITE",
+      "name": "Lumentum",
+      "side": "BUY",
+      "shares": 0.174,
+      "price": 895.0,
+      "amount": 155.99,
+      "pnl": 0.0,
+      "reason": "综合分 69.3 ≥ 58, 建/加仓至 3%(🟢 Risk-On 进攻)"
     }
   ],
   "equity_curve": [
@@ -7869,8 +8045,14 @@
       "total": 104812.43,
       "cash": 5240.62,
       "invested": 99571.81
+    },
+    {
+      "date": "2026-08-29",
+      "total": 102636.81,
+      "cash": 5156.75,
+      "invested": 97480.06
     }
   ],
   "created": "2026-07-02 12:20",
-  "last_run": "2026-08-28 05:30"
+  "last_run": "2026-08-29 03:13"
 }
