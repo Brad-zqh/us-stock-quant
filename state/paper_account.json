@@ -1,5 +1,5 @@
 {
-  "cash": 5220.972263914508,
+  "cash": 5540.982091383558,
   "start_cash": 100000.0,
   "positions": {
     "LITE": {
@@ -18,7 +18,7 @@
       "name": "美光科技 Micron"
     },
     "AAPL": {
-      "shares": 31.105068771568614,
+      "shares": 30.87323481172799,
       "avg_cost": 314.2884848672059,
       "name": "苹果 Apple"
     },
@@ -78,12 +78,12 @@
       "name": "泛林 Lam Research"
     },
     "KLAC": {
-      "shares": 31.102151767223447,
+      "shares": 30.167859394092957,
       "avg_cost": 185.59154525420013,
       "name": "科磊 KLA"
     },
     "AVGO": {
-      "shares": 0.9733775037141674,
+      "shares": 0.37281390435615036,
       "avg_cost": 371.54658680610515,
       "name": "博通 Broadcom"
     },
@@ -93,8 +93,8 @@
       "name": "微软 Microsoft"
     },
     "PLTR": {
-      "shares": 28.088813651292423,
-      "avg_cost": 172.84841636050817,
+      "shares": 28.906323329187344,
+      "avg_cost": 172.8903175890735,
       "name": "Palantir"
     },
     "SMCI": {
@@ -8848,6 +8848,50 @@
       "amount": 843.66,
       "pnl": 0.0,
       "reason": "综合分 66.7 ≥ 58, 建/加仓至 3%(🟢 Risk-On 进攻)"
+    },
+    {
+      "date": "2026-09-07 21:32",
+      "code": "AAPL",
+      "name": "苹果 Apple",
+      "side": "SELL",
+      "shares": 0.232,
+      "price": 319.97,
+      "amount": 74.18,
+      "pnl": 1.32,
+      "reason": "再平衡减仓至目标权重 9%"
+    },
+    {
+      "date": "2026-09-07 21:32",
+      "code": "KLAC",
+      "name": "科磊 KLA",
+      "side": "SELL",
+      "shares": 0.934,
+      "price": 185.6,
+      "amount": 173.4,
+      "pnl": 0.01,
+      "reason": "再平衡减仓至目标权重 5%"
+    },
+    {
+      "date": "2026-09-07 21:32",
+      "code": "AVGO",
+      "name": "博通 Broadcom",
+      "side": "SELL",
+      "shares": 0.601,
+      "price": 357.9,
+      "amount": 214.94,
+      "pnl": -8.2,
+      "reason": "再平衡减仓至目标权重 0%"
+    },
+    {
+      "date": "2026-09-07 21:32",
+      "code": "PLTR",
+      "name": "Palantir",
+      "side": "BUY",
+      "shares": 0.818,
+      "price": 174.33,
+      "amount": 142.52,
+      "pnl": 0.0,
+      "reason": "综合分 67.7 ≥ 58, 建/加仓至 5%(🟢 Risk-On 进攻)"
     }
   ],
   "equity_curve": [
@@ -9120,8 +9164,14 @@
       "total": 104419.45,
       "cash": 5220.97,
       "invested": 99198.47
+    },
+    {
+      "date": "2026-09-07",
+      "total": 104419.45,
+      "cash": 5540.98,
+      "invested": 98878.47
     }
   ],
   "created": "2026-07-02 12:20",
-  "last_run": "2026-09-04 21:32"
+  "last_run": "2026-09-07 21:32"
 }
