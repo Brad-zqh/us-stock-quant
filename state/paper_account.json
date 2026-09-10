@@ -1,10 +1,10 @@
 {
-  "cash": 5273.720420534679,
+  "cash": 5177.675469426156,
   "start_cash": 100000.0,
   "positions": {
     "LITE": {
-      "shares": 3.030625753070796,
-      "avg_cost": 869.6344784718668,
+      "shares": 3.4349044409749556,
+      "avg_cost": 877.4102078271089,
       "name": "Lumentum"
     },
     "SNDK": {
@@ -13,62 +13,62 @@
       "name": "闪迪 SanDisk"
     },
     "MU": {
-      "shares": 5.295285237825294,
+      "shares": 5.183945191263614,
       "avg_cost": 932.6297958613927,
       "name": "美光科技 Micron"
     },
     "AAPL": {
-      "shares": 26.763378285005732,
-      "avg_cost": 314.2884848672059,
+      "shares": 28.946501473125114,
+      "avg_cost": 315.2147479766254,
       "name": "苹果 Apple"
     },
     "NVDA": {
-      "shares": 29.438882930199995,
+      "shares": 24.41621804735165,
       "avg_cost": 209.99063656088634,
       "name": "英伟达 Nvidia"
     },
     "CRWD": {
-      "shares": 14.967889110274195,
+      "shares": 14.30224407673427,
       "avg_cost": 201.43812776953735,
       "name": "CrowdStrike"
     },
     "SNOW": {
-      "shares": 12.279253423525791,
+      "shares": 11.467983941637105,
       "avg_cost": 287.59439370639444,
       "name": "Snowflake"
     },
     "ANET": {
-      "shares": 32.29710211738416,
-      "avg_cost": 180.17000536036122,
+      "shares": 36.41370917076192,
+      "avg_cost": 181.16711539348697,
       "name": "Arista 网络"
     },
     "AMD": {
-      "shares": 11.276533236990149,
+      "shares": 10.81207710903012,
       "avg_cost": 478.43784306585644,
       "name": "超威 AMD"
     },
     "STX": {
-      "shares": 4.48790183172634,
-      "avg_cost": 817.4660261818431,
+      "shares": 4.647985133946849,
+      "avg_cost": 819.0112066435638,
       "name": "希捷 Seagate"
     },
     "NET": {
-      "shares": 11.171659719358153,
-      "avg_cost": 280.45565276908957,
+      "shares": 12.030116273760418,
+      "avg_cost": 282.6473975221473,
       "name": "Cloudflare"
     },
     "WDC": {
-      "shares": 9.403830807273758,
+      "shares": 9.269916962296048,
       "avg_cost": 475.8843079276776,
       "name": "西部数据 WDC"
     },
     "MRVL": {
-      "shares": 15.774214378612712,
+      "shares": 15.494086701021587,
       "avg_cost": 214.73790674242886,
       "name": "迈威尔 Marvell"
     },
     "AMAT": {
-      "shares": 13.037790244175394,
+      "shares": 12.825894453359913,
       "avg_cost": 495.3347108858239,
       "name": "应用材料 AMAT"
     },
@@ -78,28 +78,28 @@
       "name": "泛林 Lam Research"
     },
     "KLAC": {
-      "shares": 25.899024431824046,
+      "shares": 22.194789417341166,
       "avg_cost": 185.59154525420013,
       "name": "科磊 KLA"
     },
     "AVGO": {
-      "shares": 11.580717242014309,
+      "shares": 11.422370544975061,
       "avg_cost": 368.4900203228931,
       "name": "博通 Broadcom"
     },
     "MSFT": {
-      "shares": 20.13961373891506,
+      "shares": 19.196367377188785,
       "avg_cost": 478.6280062726128,
       "name": "微软 Microsoft"
     },
     "PLTR": {
-      "shares": 30.474104627939905,
+      "shares": 28.26912664293999,
       "avg_cost": 172.36414130622657,
       "name": "Palantir"
     },
     "SMCI": {
-      "shares": 74.96413431640237,
-      "avg_cost": 38.156865141511815,
+      "shares": 113.29508827532507,
+      "avg_cost": 37.894029907584105,
       "name": "超微 Supermicro"
     }
   },
@@ -9211,6 +9211,204 @@
       "amount": 343.79,
       "pnl": 0.0,
       "reason": "综合分 67.5 ≥ 58, 建/加仓至 3%(🟢 Risk-On 进攻)"
+    },
+    {
+      "date": "2026-09-10 21:32",
+      "code": "MU",
+      "name": "美光科技 Micron",
+      "side": "SELL",
+      "shares": 0.111,
+      "price": 977.41,
+      "amount": 108.82,
+      "pnl": 4.99,
+      "reason": "再平衡减仓至目标权重 5%"
+    },
+    {
+      "date": "2026-09-10 21:32",
+      "code": "NVDA",
+      "name": "英伟达 Nvidia",
+      "side": "SELL",
+      "shares": 5.023,
+      "price": 218.36,
+      "amount": 1096.75,
+      "pnl": 42.04,
+      "reason": "再平衡减仓至目标权重 5%"
+    },
+    {
+      "date": "2026-09-10 21:32",
+      "code": "CRWD",
+      "name": "CrowdStrike",
+      "side": "SELL",
+      "shares": 0.666,
+      "price": 208.86,
+      "amount": 139.03,
+      "pnl": 4.94,
+      "reason": "再平衡减仓至目标权重 3%"
+    },
+    {
+      "date": "2026-09-10 21:32",
+      "code": "SNOW",
+      "name": "Snowflake",
+      "side": "SELL",
+      "shares": 0.811,
+      "price": 329.72,
+      "amount": 267.49,
+      "pnl": 34.18,
+      "reason": "再平衡减仓至目标权重 4%"
+    },
+    {
+      "date": "2026-09-10 21:32",
+      "code": "AMD",
+      "name": "超威 AMD",
+      "side": "SELL",
+      "shares": 0.464,
+      "price": 503.6,
+      "amount": 233.9,
+      "pnl": 11.69,
+      "reason": "再平衡减仓至目标权重 5%"
+    },
+    {
+      "date": "2026-09-10 21:32",
+      "code": "WDC",
+      "name": "西部数据 WDC",
+      "side": "SELL",
+      "shares": 0.134,
+      "price": 460.93,
+      "amount": 61.72,
+      "pnl": -2.0,
+      "reason": "再平衡减仓至目标权重 4%"
+    },
+    {
+      "date": "2026-09-10 21:32",
+      "code": "MRVL",
+      "name": "迈威尔 Marvell",
+      "side": "SELL",
+      "shares": 0.28,
+      "price": 226.96,
+      "amount": 63.58,
+      "pnl": 3.42,
+      "reason": "再平衡减仓至目标权重 3%"
+    },
+    {
+      "date": "2026-09-10 21:32",
+      "code": "AMAT",
+      "name": "应用材料 AMAT",
+      "side": "SELL",
+      "shares": 0.212,
+      "price": 454.01,
+      "amount": 96.2,
+      "pnl": -8.76,
+      "reason": "再平衡减仓至目标权重 6%"
+    },
+    {
+      "date": "2026-09-10 21:32",
+      "code": "KLAC",
+      "name": "科磊 KLA",
+      "side": "SELL",
+      "shares": 3.704,
+      "price": 177.18,
+      "amount": 656.32,
+      "pnl": -31.16,
+      "reason": "再平衡减仓至目标权重 4%"
+    },
+    {
+      "date": "2026-09-10 21:32",
+      "code": "AVGO",
+      "name": "博通 Broadcom",
+      "side": "SELL",
+      "shares": 0.158,
+      "price": 360.83,
+      "amount": 57.14,
+      "pnl": -1.21,
+      "reason": "再平衡减仓至目标权重 4%"
+    },
+    {
+      "date": "2026-09-10 21:32",
+      "code": "MSFT",
+      "name": "微软 Microsoft",
+      "side": "SELL",
+      "shares": 0.943,
+      "price": 492.44,
+      "amount": 464.49,
+      "pnl": 13.03,
+      "reason": "再平衡减仓至目标权重 9%"
+    },
+    {
+      "date": "2026-09-10 21:32",
+      "code": "PLTR",
+      "name": "Palantir",
+      "side": "SELL",
+      "shares": 2.205,
+      "price": 165.86,
+      "amount": 365.72,
+      "pnl": -14.34,
+      "reason": "再平衡减仓至目标权重 5%"
+    },
+    {
+      "date": "2026-09-10 21:32",
+      "code": "AAPL",
+      "name": "苹果 Apple",
+      "side": "BUY",
+      "shares": 2.183,
+      "price": 326.57,
+      "amount": 712.94,
+      "pnl": 0.0,
+      "reason": "综合分 66.9 ≥ 58, 建/加仓至 9%(🟡 中性)"
+    },
+    {
+      "date": "2026-09-10 21:32",
+      "code": "ANET",
+      "name": "Arista 网络",
+      "side": "BUY",
+      "shares": 4.117,
+      "price": 188.99,
+      "amount": 778.0,
+      "pnl": 0.0,
+      "reason": "综合分 72.8 ≥ 58, 建/加仓至 7%(🟡 中性)"
+    },
+    {
+      "date": "2026-09-10 21:32",
+      "code": "SMCI",
+      "name": "超微 Supermicro",
+      "side": "BUY",
+      "shares": 38.331,
+      "price": 37.38,
+      "amount": 1432.81,
+      "pnl": 0.0,
+      "reason": "综合分 66.8 ≥ 58, 建/加仓至 4%(🟡 中性)"
+    },
+    {
+      "date": "2026-09-10 21:32",
+      "code": "STX",
+      "name": "希捷 Seagate",
+      "side": "BUY",
+      "shares": 0.16,
+      "price": 862.33,
+      "amount": 138.04,
+      "pnl": 0.0,
+      "reason": "综合分 78.1 ≥ 58, 建/加仓至 4%(🟡 中性)"
+    },
+    {
+      "date": "2026-09-10 21:32",
+      "code": "NET",
+      "name": "Cloudflare",
+      "side": "BUY",
+      "shares": 0.858,
+      "price": 311.17,
+      "amount": 267.13,
+      "pnl": 0.0,
+      "reason": "综合分 69.8 ≥ 58, 建/加仓至 4%(🟡 中性)"
+    },
+    {
+      "date": "2026-09-10 21:32",
+      "code": "LITE",
+      "name": "Lumentum",
+      "side": "BUY",
+      "shares": 0.404,
+      "price": 935.7,
+      "amount": 378.28,
+      "pnl": 0.0,
+      "reason": "综合分 71.0 ≥ 58, 建/加仓至 3%(🟡 中性)"
     }
   ],
   "equity_curve": [
@@ -9501,8 +9699,14 @@
       "total": 105691.73,
       "cash": 5273.72,
       "invested": 100418.01
+    },
+    {
+      "date": "2026-09-10",
+      "total": 103565.73,
+      "cash": 5177.68,
+      "invested": 98388.05
     }
   ],
   "created": "2026-07-02 12:20",
-  "last_run": "2026-09-09 21:32"
+  "last_run": "2026-09-10 21:32"
 }
