@@ -1,10 +1,10 @@
 {
-  "cash": 5384.401144974079,
+  "cash": 5507.619335473582,
   "start_cash": 100000.0,
   "positions": {
     "LITE": {
-      "shares": 2.547406958633237,
-      "avg_cost": 915.9822270907928,
+      "shares": 3.432589208949237,
+      "avg_cost": 930.8120969328814,
       "name": "Lumentum"
     },
     "SNDK": {
@@ -33,7 +33,7 @@
       "name": "CrowdStrike"
     },
     "SNOW": {
-      "shares": 11.43453035638843,
+      "shares": 11.275716525167574,
       "avg_cost": 295.0846743927593,
       "name": "Snowflake"
     },
@@ -43,7 +43,7 @@
       "name": "Arista 网络"
     },
     "AMD": {
-      "shares": 7.557644602564974,
+      "shares": 7.447819033507663,
       "avg_cost": 485.930186887183,
       "name": "超威 AMD"
     },
@@ -63,32 +63,32 @@
       "name": "西部数据 WDC"
     },
     "MRVL": {
-      "shares": 18.634196543491818,
+      "shares": 17.584595221776777,
       "avg_cost": 225.27848998007156,
       "name": "迈威尔 Marvell"
     },
     "AMAT": {
-      "shares": 11.010589467518512,
+      "shares": 9.857610201009043,
       "avg_cost": 479.6701652832884,
       "name": "应用材料 AMAT"
     },
     "LRCX": {
-      "shares": 14.480986892790858,
+      "shares": 13.757349416996515,
       "avg_cost": 295.2455045570988,
       "name": "泛林 Lam Research"
     },
     "KLAC": {
-      "shares": 24.998591472088098,
-      "avg_cost": 179.97187384042292,
+      "shares": 25.858664676571323,
+      "avg_cost": 180.52260605163852,
       "name": "科磊 KLA"
     },
     "AVGO": {
-      "shares": 18.93920177786053,
-      "avg_cost": 354.8329530419842,
+      "shares": 19.3106830845294,
+      "avg_cost": 354.83809036518574,
       "name": "博通 Broadcom"
     },
     "MSFT": {
-      "shares": 17.226758316701705,
+      "shares": 17.097729989016308,
       "avg_cost": 483.4445952025705,
       "name": "微软 Microsoft"
     },
@@ -11708,6 +11708,105 @@
       "amount": 109.0,
       "pnl": 0.0,
       "reason": "综合分 80.5 ≥ 58, 建/加仓至 3%(🟢 Risk-On 进攻)"
+    },
+    {
+      "date": "2026-09-29 21:35",
+      "code": "SNOW",
+      "name": "Snowflake",
+      "side": "SELL",
+      "shares": 0.159,
+      "price": 330.31,
+      "amount": 52.46,
+      "pnl": 5.59,
+      "reason": "再平衡减仓至目标权重 3%"
+    },
+    {
+      "date": "2026-09-29 21:35",
+      "code": "AMD",
+      "name": "超威 AMD",
+      "side": "SELL",
+      "shares": 0.11,
+      "price": 607.57,
+      "amount": 66.73,
+      "pnl": 13.36,
+      "reason": "再平衡减仓至目标权重 4%"
+    },
+    {
+      "date": "2026-09-29 21:35",
+      "code": "MRVL",
+      "name": "迈威尔 Marvell",
+      "side": "SELL",
+      "shares": 1.05,
+      "price": 263.27,
+      "amount": 276.33,
+      "pnl": 39.88,
+      "reason": "再平衡减仓至目标权重 4%"
+    },
+    {
+      "date": "2026-09-29 21:35",
+      "code": "AMAT",
+      "name": "应用材料 AMAT",
+      "side": "SELL",
+      "shares": 1.153,
+      "price": 512.01,
+      "amount": 590.34,
+      "pnl": 37.29,
+      "reason": "再平衡减仓至目标权重 5%"
+    },
+    {
+      "date": "2026-09-29 21:35",
+      "code": "LRCX",
+      "name": "泛林 Lam Research",
+      "side": "SELL",
+      "shares": 0.724,
+      "price": 323.86,
+      "amount": 234.36,
+      "pnl": 20.71,
+      "reason": "再平衡减仓至目标权重 4%"
+    },
+    {
+      "date": "2026-09-29 21:35",
+      "code": "MSFT",
+      "name": "微软 Microsoft",
+      "side": "SELL",
+      "shares": 0.129,
+      "price": 508.96,
+      "amount": 65.67,
+      "pnl": 3.29,
+      "reason": "再平衡减仓至目标权重 8%"
+    },
+    {
+      "date": "2026-09-29 21:35",
+      "code": "AVGO",
+      "name": "博通 Broadcom",
+      "side": "BUY",
+      "shares": 0.371,
+      "price": 355.1,
+      "amount": 131.91,
+      "pnl": 0.0,
+      "reason": "综合分 65.5 ≥ 58, 建/加仓至 6%(🟢 Risk-On 进攻)"
+    },
+    {
+      "date": "2026-09-29 21:35",
+      "code": "KLAC",
+      "name": "科磊 KLA",
+      "side": "BUY",
+      "shares": 0.86,
+      "price": 196.53,
+      "amount": 169.03,
+      "pnl": 0.0,
+      "reason": "综合分 69.0 ≥ 58, 建/加仓至 5%(🟢 Risk-On 进攻)"
+    },
+    {
+      "date": "2026-09-29 21:35",
+      "code": "LITE",
+      "name": "Lumentum",
+      "side": "BUY",
+      "shares": 0.885,
+      "price": 973.49,
+      "amount": 861.72,
+      "pnl": 0.0,
+      "reason": "综合分 72.6 ≥ 58, 建/加仓至 3%(🟢 Risk-On 进攻)"
     }
   ],
   "equity_curve": [
@@ -12076,8 +12175,14 @@
       "total": 110287.64,
       "cash": 5384.4,
       "invested": 104903.24
+    },
+    {
+      "date": "2026-09-29",
+      "total": 110983.33,
+      "cash": 5507.62,
+      "invested": 105475.71
     }
   ],
   "created": "2026-07-02 12:20",
-  "last_run": "2026-09-28 21:34"
+  "last_run": "2026-09-29 21:35"
 }
