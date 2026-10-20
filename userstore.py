@@ -21,12 +21,17 @@ import hmac
 import base64
 import hashlib
 import datetime as dt
+import time
 
 _LOCAL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "users.json")
 _CONFIG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.json")
 
 # profile 对外暴露时要隐藏的敏感字段
 _SECRET_FIELDS = ("pw_hash", "salt")
+
+
+class AccountBackendError(RuntimeError):
+    """账户后端不可访问；与“账号不存在”严格区分。"""
 
 
 def _now() -> str:
@@ -90,7 +95,10 @@ def valid_invite_codes() -> set[str]:
 
 
 def using_supabase() -> bool:
-    return bool(_get_secret("SUPABASE_URL") and _get_secret("SUPABASE_KEY"))
+    return bool(
+        _get_secret("SUPABASE_URL")
+        and (_get_secret("SUPABASE_SERVICE_KEY") or _get_secret("SUPABASE_KEY"))
+    )
 
 
 def backend_name() -> str:
@@ -113,7 +121,7 @@ def _local_save(data: dict) -> None:
 
 # ---------------------------------------------------------------- Supabase 后端 (PostgREST)
 def _sb_headers() -> dict:
-    key = _get_secret("SUPABASE_KEY")
+    key = _get_secret("SUPABASE_SERVICE_KEY") or _get_secret("SUPABASE_KEY")
     return {
         "apikey": key,
         "Authorization": f"Bearer {key}",
@@ -127,34 +135,52 @@ def _sb_url(path: str) -> str:
     return f"{base}/rest/v1/{path}"
 
 
-def _sb_get(email: str) -> dict | None:
+def _sb_request(method: str, path: str, **kwargs):
+    """请求 Supabase，连接故障和 5xx 最多重试三次。"""
     import requests
-    r = requests.get(_sb_url(f"users?email=eq.{email}&select=*"),
-                     headers=_sb_headers(), timeout=15)
-    r.raise_for_status()
+
+    last_error: Exception | None = None
+    timeout = kwargs.pop("timeout", (5, 15))
+    for attempt in range(3):
+        try:
+            response = requests.request(
+                method,
+                _sb_url(path),
+                headers=_sb_headers(),
+                timeout=timeout,
+                **kwargs,
+            )
+            response.raise_for_status()
+            return response
+        except requests.RequestException as exc:
+            last_error = exc
+            status = getattr(getattr(exc, "response", None), "status_code", None)
+            if status is not None and status < 500:
+                raise
+            if attempt < 2:
+                time.sleep(0.4 * (2 ** attempt))
+    assert last_error is not None
+    raise last_error
+
+
+def _sb_get(email: str) -> dict | None:
+    r = _sb_request("GET", "users", params={"email": f"eq.{email}", "select": "*"})
     rows = r.json()
     return rows[0] if rows else None
 
 
 def _sb_insert(rec: dict) -> None:
-    import requests
-    r = requests.post(_sb_url("users"), headers=_sb_headers(),
-                      data=json.dumps(rec), timeout=15)
-    r.raise_for_status()
+    _sb_request("POST", "users", data=json.dumps(rec))
 
 
 def _sb_update(email: str, fields: dict) -> None:
-    import requests
-    r = requests.patch(_sb_url(f"users?email=eq.{email}"), headers=_sb_headers(),
-                       data=json.dumps(fields), timeout=15)
-    r.raise_for_status()
+    _sb_request("PATCH", "users", params={"email": f"eq.{email}"},
+                data=json.dumps(fields))
 
 
 def _sb_list() -> list[dict]:
-    import requests
-    r = requests.get(_sb_url("users?select=*&order=created_at.desc"),
-                     headers=_sb_headers(), timeout=15)
-    r.raise_for_status()
+    r = _sb_request("GET", "users",
+                    params={"select": "*", "order": "created_at.desc"})
     return r.json()
 
 
@@ -174,14 +200,18 @@ def _new_record(email: str, password: str, is_admin: bool) -> dict:
     }
 
 
-def get_record(email: str) -> dict | None:
+def get_record(email: str, *, strict: bool = False) -> dict | None:
     email = (email or "").strip().lower()
     if not email:
         return None
     if using_supabase():
         try:
             return _sb_get(email)
-        except Exception:
+        except Exception as exc:
+            if strict:
+                raise AccountBackendError(
+                    "账户服务暂时不可用，请稍后重试或联系管理员检查 Supabase 配置。"
+                ) from exc
             return None
     return _local_load().get(email)
 
@@ -216,7 +246,11 @@ def create_user(email: str, password: str, invite_code: str = "") -> tuple[bool,
         return False, "请输入有效邮箱。"
     if len(password or "") < 6:
         return False, "密码至少 6 位。"
-    if get_record(email):
+    try:
+        existing = get_record(email, strict=True)
+    except AccountBackendError as exc:
+        return False, str(exc)
+    if existing:
         return False, "该邮箱已注册, 请直接登录。"
 
     is_admin = email in admin_emails()
@@ -236,7 +270,10 @@ def create_user(email: str, password: str, invite_code: str = "") -> tuple[bool,
 
 def verify_login(email: str, password: str) -> tuple[bool, str]:
     email = (email or "").strip().lower()
-    rec = get_record(email)
+    try:
+        rec = get_record(email, strict=True)
+    except AccountBackendError as exc:
+        return False, str(exc)
     if not rec:
         return False, "用户不存在, 请先注册。"
     if not verify_password(password, rec.get("pw_hash", ""), rec.get("salt", "")):

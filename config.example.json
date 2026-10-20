@@ -9,9 +9,11 @@
   },
   "serverchan_key": "在此填 Server酱 SendKey, 申请见 https://sct.ftqq.com",
   "confirm_url": "https://你的Streamlit域名.streamlit.app/?confirm=1",
+  "AUTH_TOKEN_SECRET": "请生成至少32字节的随机密钥，迁移数据库时保持不变",
   "supabase": {
     "url": "https://xxxx.supabase.co",
-    "key": "你的 anon public key"
+    "key": "你的 anon public key",
+    "service_key": "可选：仅服务端使用的 service role key，绝不要放到前端"
   },
   "llm": {
     "_说明": "AI交易员『操盘日志』用的大模型。留空则用免费规则版。DeepSeek最便宜。",

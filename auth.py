@@ -34,7 +34,11 @@ _AUTH_KEY = "hg_auth_token_v1"
 _AUTH_SET_KEY = "hg_auth_set"
 _AUTH_DEL_KEY = "hg_auth_del"
 _AUTH_MOUNT_KEY = "hg_auth_mount"
-_AUTH_TOKEN_VERSION = 2
+_AUTH_TOKEN_VERSION = 3
+
+
+class _AuthBackendUnavailable(RuntimeError):
+    """旧版凭证暂时无法向账户后端完成校验。"""
 
 
 def _store():
@@ -61,18 +65,40 @@ def _secret_for_record(rec: dict) -> str:
     return f"{rec.get('pw_hash', '')}::{rec.get('salt', '')}"
 
 
+def _app_token_secret() -> str:
+    """返回可跨后端故障验证凭证的稳定密钥。
+
+    AUTH_TOKEN_SECRET 最佳；为兼容现有部署，缺省复用仅在服务端使用的
+    Supabase key。切换 Supabase 项目前应先配置独立 AUTH_TOKEN_SECRET。
+    """
+    return (
+        userstore._get_secret("AUTH_TOKEN_SECRET", "").strip()
+        or userstore._get_secret("SUPABASE_SERVICE_KEY", "").strip()
+        or userstore._get_secret("SUPABASE_KEY", "").strip()
+    )
+
+
+def _revocation_tag(rec: dict, secret: str) -> str:
+    """生成不泄露密码哈希的短标签；后端在线时用于使改密立即失效。"""
+    return hmac.new(
+        secret.encode("utf-8"),
+        _secret_for_record(rec).encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()[:24]
+
+
 def _make_token(email: str) -> str | None:
     rec = userstore.get_record(email)
-    if not rec:
+    secret = _app_token_secret()
+    if not rec or not secret:
         return None
     payload = {
         "email": email.strip().lower(),
-        # v2 intentionally has no fixed expiry. Changing the password changes
-        # the signing secret, so an existing token is still revoked immediately.
         "v": _AUTH_TOKEN_VERSION,
+        "rv": _revocation_tag(rec, secret),
     }
     body = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
-    sig = hmac.new(_secret_for_record(rec).encode("utf-8"), body, hashlib.sha256).digest()
+    sig = hmac.new(secret.encode("utf-8"), body, hashlib.sha256).digest()
     return f"{_b64u(body)}.{_b64u(sig)}"
 
 
@@ -82,6 +108,7 @@ def _parse_token(token: str) -> str | None:
         body = _b64u_decode(body64)
         payload = json.loads(body.decode("utf-8"))
         email = str(payload.get("email", "")).strip().lower()
+        version = int(payload.get("v", 1))
     except Exception:
         return None
     if not email:
@@ -94,14 +121,39 @@ def _parse_token(token: str) -> str | None:
                 return None
         except (TypeError, ValueError):
             return None
-    rec = userstore.get_record(email)
-    if not rec:
-        return None
-    want = hmac.new(_secret_for_record(rec).encode("utf-8"), body, hashlib.sha256).digest()
     try:
         got = _b64u_decode(sig64)
     except Exception:
         return None
+
+    if version >= 3:
+        secret = _app_token_secret()
+        if not secret:
+            return None
+        want = hmac.new(secret.encode("utf-8"), body, hashlib.sha256).digest()
+        if not hmac.compare_digest(got, want):
+            return None
+        try:
+            rec = userstore.get_record(email, strict=True)
+        except userstore.AccountBackendError:
+            # 凭证签名已通过：数据库短暂掉线时允许已登录设备继续使用。
+            return email
+        if not rec:
+            return None
+        if not hmac.compare_digest(
+            str(payload.get("rv", "")), _revocation_tag(rec, secret)
+        ):
+            return None
+        return email
+
+    # 兼容 v1/v2：旧凭证以用户密码哈希签名，必须访问账户后端验证。
+    try:
+        rec = userstore.get_record(email, strict=True)
+    except userstore.AccountBackendError as exc:
+        raise _AuthBackendUnavailable from exc
+    if not rec:
+        return None
+    want = hmac.new(_secret_for_record(rec).encode("utf-8"), body, hashlib.sha256).digest()
     if not hmac.compare_digest(got, want):
         return None
     return email
@@ -136,7 +188,11 @@ def _restore_login() -> str | None:
         token = store.getItem(_AUTH_KEY)
     except Exception:
         return None
-    email = _parse_token(token)
+    try:
+        email = _parse_token(token)
+    except _AuthBackendUnavailable:
+        # 保留旧凭证，等账户服务恢复后再迁移，不能把短暂断线当作登出。
+        return None
     if email:
         st.session_state["auth_email"] = email
         st.session_state["auth_ok"] = True
