@@ -1,5 +1,5 @@
 {
-  "cash": 4711.4148334428255,
+  "cash": 9510.159124223184,
   "start_cash": 100000.0,
   "positions": {
     "LITE": {
@@ -18,7 +18,7 @@
       "name": "美光科技 Micron"
     },
     "AAPL": {
-      "shares": 45.28954294807521,
+      "shares": 41.16126601416917,
       "avg_cost": 340.7846016326934,
       "name": "苹果 Apple"
     },
@@ -28,7 +28,7 @@
       "name": "英伟达 Nvidia"
     },
     "CRWD": {
-      "shares": 32.510002845525506,
+      "shares": 26.40938386507971,
       "avg_cost": 237.9538336299944,
       "name": "CrowdStrike"
     },
@@ -88,12 +88,12 @@
       "name": "博通 Broadcom"
     },
     "MSFT": {
-      "shares": 32.27726185404881,
+      "shares": 32.10933241258483,
       "avg_cost": 508.5415552957854,
       "name": "微软 Microsoft"
     },
     "PLTR": {
-      "shares": 52.47780193880483,
+      "shares": 39.81335748969464,
       "avg_cost": 182.38933873559043,
       "name": "Palantir"
     },
@@ -16570,6 +16570,50 @@
       "amount": 627.94,
       "pnl": 0.0,
       "reason": "综合分 60.5 ≥ 58, 建/加仓至 6%(🔴 Risk-Off 防御)"
+    },
+    {
+      "date": "2026-11-05 21:31",
+      "code": "AAPL",
+      "name": "苹果 Apple",
+      "side": "SELL",
+      "shares": 4.128,
+      "price": 344.17,
+      "amount": 1420.83,
+      "pnl": 13.98,
+      "reason": "再平衡减仓至目标权重 16%"
+    },
+    {
+      "date": "2026-11-05 21:31",
+      "code": "CRWD",
+      "name": "CrowdStrike",
+      "side": "SELL",
+      "shares": 6.101,
+      "price": 217.2,
+      "amount": 1325.05,
+      "pnl": -126.61,
+      "reason": "再平衡减仓至目标权重 7%"
+    },
+    {
+      "date": "2026-11-05 21:31",
+      "code": "MSFT",
+      "name": "微软 Microsoft",
+      "side": "SELL",
+      "shares": 0.168,
+      "price": 535.93,
+      "amount": 90.0,
+      "pnl": 4.6,
+      "reason": "再平衡减仓至目标权重 20%"
+    },
+    {
+      "date": "2026-11-05 21:31",
+      "code": "PLTR",
+      "name": "Palantir",
+      "side": "SELL",
+      "shares": 12.664,
+      "price": 154.99,
+      "amount": 1962.86,
+      "pnl": -347.0,
+      "reason": "再平衡减仓至目标权重 7%"
     }
   ],
   "equity_curve": [
@@ -17100,8 +17144,14 @@
       "total": 94258.82,
       "cash": 4711.41,
       "invested": 89547.41
+    },
+    {
+      "date": "2026-11-05",
+      "total": 86910.88,
+      "cash": 9510.16,
+      "invested": 77400.72
     }
   ],
   "created": "2026-07-02 12:20",
-  "last_run": "2026-11-04 21:31"
+  "last_run": "2026-11-05 21:31"
 }
