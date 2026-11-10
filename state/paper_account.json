@@ -1,12 +1,7 @@
 {
-  "cash": 7928.107652596886,
+  "cash": 11322.551945596562,
   "start_cash": 100000.0,
   "positions": {
-    "LITE": {
-      "shares": 0.9960581447151201,
-      "avg_cost": 828.2971160485089,
-      "name": "Lumentum"
-    },
     "SNDK": {
       "shares": 1.2425132973793973,
       "avg_cost": 1412.0088785548946,
@@ -18,7 +13,7 @@
       "name": "美光科技 Micron"
     },
     "AAPL": {
-      "shares": 43.44776609000624,
+      "shares": 41.418975903029676,
       "avg_cost": 341.538864262337,
       "name": "苹果 Apple"
     },
@@ -28,17 +23,17 @@
       "name": "英伟达 Nvidia"
     },
     "CRWD": {
-      "shares": 24.934737760784063,
+      "shares": 24.128023828403382,
       "avg_cost": 237.9538336299944,
       "name": "CrowdStrike"
     },
     "SNOW": {
-      "shares": 20.39154752128813,
-      "avg_cost": 317.80832833422835,
+      "shares": 21.48701448794255,
+      "avg_cost": 316.6842445451225,
       "name": "Snowflake"
     },
     "ANET": {
-      "shares": 36.97722514765816,
+      "shares": 33.856954714910884,
       "avg_cost": 185.15299651823105,
       "name": "Arista 网络"
     },
@@ -88,13 +83,13 @@
       "name": "博通 Broadcom"
     },
     "MSFT": {
-      "shares": 34.177388659274285,
+      "shares": 29.117632575225002,
       "avg_cost": 510.4852842109944,
       "name": "微软 Microsoft"
     },
     "PLTR": {
-      "shares": 41.228353406372605,
-      "avg_cost": 180.70155400852568,
+      "shares": 47.32343339811149,
+      "avg_cost": 179.17125554397427,
       "name": "Palantir"
     },
     "SMCI": {
@@ -16735,6 +16730,83 @@
       "amount": 188.26,
       "pnl": 0.0,
       "reason": "综合分 60.9 ≥ 58, 建/加仓至 5%(🔴 Risk-Off 防御)"
+    },
+    {
+      "date": "2026-11-10 21:31",
+      "code": "LITE",
+      "name": "Lumentum",
+      "side": "SELL",
+      "shares": 0.996,
+      "price": 585.57,
+      "amount": 583.26,
+      "pnl": -241.77,
+      "reason": "综合分 44.9 < 45, 清仓"
+    },
+    {
+      "date": "2026-11-10 21:31",
+      "code": "AAPL",
+      "name": "苹果 Apple",
+      "side": "SELL",
+      "shares": 2.029,
+      "price": 348.51,
+      "amount": 707.05,
+      "pnl": 14.14,
+      "reason": "再平衡减仓至目标权重 16%"
+    },
+    {
+      "date": "2026-11-10 21:31",
+      "code": "CRWD",
+      "name": "CrowdStrike",
+      "side": "SELL",
+      "shares": 0.807,
+      "price": 225.76,
+      "amount": 182.12,
+      "pnl": -9.84,
+      "reason": "再平衡减仓至目标权重 6%"
+    },
+    {
+      "date": "2026-11-10 21:31",
+      "code": "ANET",
+      "name": "Arista 网络",
+      "side": "SELL",
+      "shares": 3.12,
+      "price": 185.02,
+      "amount": 577.31,
+      "pnl": -0.41,
+      "reason": "再平衡减仓至目标权重 7%"
+    },
+    {
+      "date": "2026-11-10 21:31",
+      "code": "MSFT",
+      "name": "微软 Microsoft",
+      "side": "SELL",
+      "shares": 5.06,
+      "price": 533.16,
+      "amount": 2697.66,
+      "pnl": 114.73,
+      "reason": "再平衡减仓至目标权重 17%"
+    },
+    {
+      "date": "2026-11-10 21:31",
+      "code": "PLTR",
+      "name": "Palantir",
+      "side": "BUY",
+      "shares": 6.095,
+      "price": 168.82,
+      "amount": 1028.97,
+      "pnl": 0.0,
+      "reason": "综合分 63.2 ≥ 58, 建/加仓至 9%(🔴 Risk-Off 防御)"
+    },
+    {
+      "date": "2026-11-10 21:31",
+      "code": "SNOW",
+      "name": "Snowflake",
+      "side": "BUY",
+      "shares": 1.095,
+      "price": 295.76,
+      "amount": 324.0,
+      "pnl": 0.0,
+      "reason": "综合分 60.3 ≥ 58, 建/加仓至 7%(🔴 Risk-Off 防御)"
     }
   ],
   "equity_curve": [
@@ -17283,8 +17355,14 @@
       "total": 91787.33,
       "cash": 7928.11,
       "invested": 83859.22
+    },
+    {
+      "date": "2026-11-10",
+      "total": 90785.71,
+      "cash": 11322.55,
+      "invested": 79463.16
     }
   ],
   "created": "2026-07-02 12:20",
-  "last_run": "2026-11-09 21:31"
+  "last_run": "2026-11-10 21:31"
 }
